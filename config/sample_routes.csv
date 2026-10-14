@@ -1,0 +1,16 @@
+﻿route_id,route_name,orig_lat,orig_lon,dest_lat,dest_lon
+R01,Silk Board to HSR BDA Complex,12.9172,77.6233,12.9116,77.6413
+R02,HSR Layout to Koramangala 80ft Rd,12.9116,77.6413,12.9352,77.6245
+R03,Koramangala to BTM Layout,12.9352,77.6245,12.9182,77.6103
+R04,BTM to Silk Board via Hosur Rd,12.9182,77.6103,12.9172,77.6233
+R05,ORR Silk Board to Marathahalli,12.9172,77.6233,12.9560,77.7010
+R06,Koramangala 80ft to St Johns Hospital,12.9352,77.6245,12.9356,77.6017
+R07,HSR Sector 1 to Agara Junction,12.9070,77.6380,12.9210,77.6390
+R08,BTM 2nd Stage to NIMHANS circle,12.9090,77.6070,12.9413,77.5965
+R09,Koramangala Forum Mall to Ejipura,12.9348,77.6170,12.9500,77.6218
+R10,Silk Board to Electronic City Phase 1,12.9172,77.6233,12.8455,77.6754
+R11,Madiwala to Koramangala 4th Block,12.9237,77.6170,12.9348,77.6170
+R12,BTM Layout to JP Nagar 1st Phase,12.9182,77.6103,12.9000,77.5897
+R13,HSR 27th Main to Agara Lake,12.9085,77.6435,12.9210,77.6390
+R14,Outer Ring Rd Silk Board to Iblur,12.9172,77.6233,12.9050,77.6640
+R15,Koramangala Water Tank to Inner Ring Rd,12.9340,77.6310,12.9610,77.6410
