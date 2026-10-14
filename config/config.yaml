@@ -1,0 +1,169 @@
+﻿# UrbanFlow Data & Network Modeling -- Master Configuration
+# Module 1 (Alent Varkey) -- all tunable numbers live here; no magic numbers in code.
+
+# == Study Area ================================================================
+study_area:
+  place_name: null
+  bbox:
+    north: 12.9505
+    south: 12.8950
+    east:  77.6450
+    west:  77.5950
+  small_bbox:
+    north: 12.9310
+    south: 12.9180
+    east:  77.6270
+    west:  77.6130
+
+# == Coordinate Reference Systems ==============================================
+crs:
+  storage: "EPSG:4326"
+  metric:  "EPSG:32643"
+
+# == OSMnx Network Download ====================================================
+osm:
+  network_type: "drive"
+  simplify:     false
+  retain_all:   false
+
+# == Intersection Consolidation ================================================
+network_cleaning:
+  consolidate_tolerance_m: 15
+  dead_ends: false
+
+# == Default Lanes by Road Class (used when OSM tag is missing) ================
+default_lanes:
+  motorway:       3
+  motorway_link:  2
+  trunk:          2
+  trunk_link:     2
+  primary:        2
+  primary_link:   1
+  secondary:      2
+  secondary_link: 1
+  tertiary:       1
+  tertiary_link:  1
+  residential:    1
+  living_street:  1
+  unclassified:   1
+  service:        1
+
+# == Default Speed Limits by Road Class (km/h) =================================
+default_speed_kmh:
+  motorway:       80
+  motorway_link:  60
+  trunk:          60
+  trunk_link:     50
+  primary:        50
+  primary_link:   40
+  secondary:      40
+  secondary_link: 30
+  tertiary:       30
+  tertiary_link:  25
+  residential:    25
+  living_street:  15
+  unclassified:   30
+  service:        20
+
+# == Free-Flow Speed Cap by Road Class (km/h) ==================================
+free_flow_speed_cap_kmh:
+  motorway:       70
+  motorway_link:  55
+  trunk:          55
+  trunk_link:     45
+  primary:        45
+  primary_link:   35
+  secondary:      35
+  secondary_link: 28
+  tertiary:       28
+  tertiary_link:  22
+  residential:    20
+  living_street:  12
+  unclassified:   28
+  service:        15
+
+free_flow_reduction_factor: 0.90
+
+# == Capacity per Lane (PCU / hour / lane) =====================================
+capacity_per_lane_pcu_hr:
+  motorway:       1800
+  motorway_link:  1600
+  trunk:          1600
+  trunk_link:     1500
+  primary:        1500
+  primary_link:   1300
+  secondary:      1300
+  secondary_link: 1000
+  tertiary:       1000
+  tertiary_link:  800
+  residential:    700
+  living_street:  500
+  unclassified:   900
+  service:        500
+
+capacity_reduction_factor: 0.85
+
+# == PCU Equivalents ===========================================================
+pcu_equivalents:
+  car:           1.0
+  two_wheeler:   0.5
+  auto_rickshaw: 0.8
+  bus:           3.0
+  truck:         3.0
+
+# == Traffic Time Slots ========================================================
+time_slots:
+  - name: night_offpeak
+    label: "Night Off-Peak"
+    hour: 23
+    minute: 0
+  - name: morning_peak
+    label: "Morning Peak"
+    hour: 8
+    minute: 30
+  - name: midday
+    label: "Midday"
+    hour: 13
+    minute: 30
+  - name: evening_peak
+    label: "Evening Peak"
+    hour: 18
+    minute: 0
+
+# == BPR Volume-Delay Parameters ===============================================
+bpr_defaults:
+  alpha: 0.15
+  beta:  4.0
+
+# == Public Transport ===========================================================
+transit:
+  max_snap_distance_m: 50
+  gtfs_zip_path: null
+
+# == Traffic Baseline Sampling =================================================
+traffic_baseline:
+  sample_routes_csv: "config/sample_routes.csv"
+  api_provider: null
+  cache_dir: "data/raw/traffic"
+  target_corridor_count: 40
+
+# == Optional API Toggles ======================================================
+api:
+  use_traffic_api: false
+  google_api_key_env: "GOOGLE_MAPS_API_KEY"
+  tomtom_api_key_env: "TOMTOM_API_KEY"
+  here_api_key_env:   "HERE_API_KEY"
+
+# == Output Paths ==============================================================
+paths:
+  raw_dir:       "data/raw"
+  interim_dir:   "data/interim"
+  processed_dir: "data/processed"
+  provenance:    "data/PROVENANCE.md"
+  blockers:      "docs/BLOCKERS.md"
+  limitations:   "docs/LIMITATIONS.md"
+
+# == Logging ===================================================================
+logging:
+  level: "INFO"
+  log_file: "urbanflow_data.log"
