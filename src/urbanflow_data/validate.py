@@ -1,4 +1,4 @@
-﻿"""
+"""
 validate.py - Phase 5b
 Automated correctness checks on the processed bundle.
 Returns True if all checks pass, False otherwise.
@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
-PASS = "\u2713"; FAIL = "\u2717"
+PASS = "[OK]"; FAIL = "[FAIL]"
 
 
 def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> bool:

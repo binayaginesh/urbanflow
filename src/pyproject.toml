@@ -1,0 +1,35 @@
+﻿[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "urbanflow-data"
+version = "0.1.0"
+description = "UrbanFlow Module 1 - Data and Network Modeling for Bengaluru"
+requires-python = ">=3.11"
+dependencies = [
+    "osmnx>=2.0.0",
+    "networkx>=3.3",
+    "geopandas>=1.0.1",
+    "shapely>=2.0.6",
+    "pyproj>=3.7.1",
+    "pyyaml>=6.0.2",
+    "folium>=0.19.4",
+    "pyarrow>=18.1.0",
+    "pandas>=2.2.3",
+    "click>=8.1.8",
+    "colorlog>=6.9.0",
+]
+
+[project.scripts]
+urbanflow-data = "urbanflow_data.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+
+[tool.coverage.run]
+source = ["urbanflow_data"]
