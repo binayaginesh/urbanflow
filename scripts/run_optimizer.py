@@ -72,13 +72,13 @@ def main() -> int:
     print(f"  UrbanFlow – Top Interventions for slot: {args.slot}")
     print("=" * 70)
     for rank, s in enumerate(suggestions, 1):
-        verdict_color = {
-            "RECOMMENDED":     "✅",
-            "MODERATE":        "⚠️ ",
-            "NOT RECOMMENDED": "❌",
-        }.get(s.verdict_label, "  ")
+        verdict_badge = {
+            "RECOMMENDED":     "[RECOMMENDED]",
+            "MODERATE":        "[MODERATE]",
+            "NOT RECOMMENDED": "[NOT RECOMMENDED]",
+        }.get(s.verdict_label, f"[{s.verdict_label}]")
         print(f"\n  Rank #{rank}: {s.name}")
-        print(f"  {verdict_color} {s.verdict_label}")
+        print(f"  Verdict:         {verdict_badge}")
         print(f"  TOPSIS score:    {s.topsis_score:.4f}")
         print(f"  Composite score: {s.composite_score:.4f}")
         print(f"  Cost index:      {s.cost_index:.0%}")

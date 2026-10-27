@@ -61,10 +61,10 @@ def main() -> int:
         print("[demo_check] FAIL: closure scenario is identical to baseline — routing is not topology-sensitive.")
         return 1
 
-    print("[demo_check] Scenarios produce different results ✓")
+    print("[demo_check] Scenarios produce different results [OK]")
 
     # ── 6. New-road scenario — add edge 10→11 ────────────────────────────────
-    print("[demo_check] Running add-road scenario (edge 10→11)...")
+    print("[demo_check] Running add-road scenario (edge 10->11)...")
     net_new_road = net.add_edge(
         10, 11,
         edge_id=9000, length_m=1200.0, lanes=2,
@@ -78,9 +78,9 @@ def main() -> int:
     print(f"  {new_road.summary()}")
     # New road should carry positive volume on edge 9000 (if the simulator assigns flow)
     # (This assertion is strengthened after A2; for now we just verify it runs.)
-    print("[demo_check] Add-road scenario ran successfully ✓")
+    print("[demo_check] Add-road scenario ran successfully [OK]")
 
-    print("\n[demo_check] ALL CHECKS PASSED ✓")
+    print("\n[demo_check] ALL CHECKS PASSED [OK]")
     return 0
 
 
