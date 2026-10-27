@@ -1,4 +1,4 @@
-﻿osmnx>=2.0.0
+osmnx>=2.0.0
 networkx>=3.3
 geopandas>=1.0.1
 shapely>=2.0.6
@@ -12,3 +12,7 @@ colorlog>=6.9.0
 pytest>=8.3.4
 pytest-cov>=6.1.0
 typing-extensions>=4.13.2
+# Stage A — Decision Intelligence deps
+numpy>=1.26
+scipy>=1.13
+scikit-learn>=1.4

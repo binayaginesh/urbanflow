@@ -1,4 +1,4 @@
-﻿# UrbanFlow Data & Network Modeling -- Master Configuration
+# UrbanFlow Data & Network Modeling -- Master Configuration
 # Module 1 (Alent Varkey) -- all tunable numbers live here; no magic numbers in code.
 
 # == Study Area ================================================================
@@ -167,3 +167,97 @@ paths:
 logging:
   level: "INFO"
   log_file: "urbanflow_data.log"
+
+# == Decision Intelligence / AI Layer (Stage A – Mehrin) =======================
+decision_intelligence:
+  # Weights for the 4 traffic criteria. Must sum to 1.0.
+  # congestion_ratio: lower is better; speed: higher is better;
+  # bus_delay_s: lower is better; emissions_index: lower is better.
+  criteria_weights:
+    congestion_ratio: 0.35
+    speed_kmh:        0.30
+    bus_delay_s:      0.20
+    emissions_index:  0.15
+
+  # Composite score boundaries (score in [0, 1]).
+  # score >= recommended  → RECOMMENDED
+  # score >= moderate     → MODERATE
+  # score <  moderate     → NOT RECOMMENDED
+  verdict_thresholds:
+    recommended: 0.60
+    moderate:    0.40
+
+  # Monte Carlo confidence estimation
+  monte_carlo_n_runs: 200
+  # Relative standard deviation applied to demand when perturbing (0.15 = ±15%)
+  monte_carlo_demand_sigma_pct: 0.15
+
+  # Optimizer candidate interventions (used by optimizer.py / scripts/run_optimizer.py)
+  # type: close_node | close_edge | add_edge
+  # params: node_id or u/v/attrs
+  # cost_index: 0–1 (0 = free, 1 = very expensive) – used in scoring
+  # feasibility: 0–1 (1 = fully feasible)
+  optimizer_candidates:
+    - name: "Close Silk Board Junction"
+      type: close_node
+      params: {node_id: 0}
+      cost_index: 0.1
+      feasibility: 0.9
+
+    - name: "Close HSR BDA Node"
+      type: close_node
+      params: {node_id: 1}
+      cost_index: 0.1
+      feasibility: 0.8
+
+    - name: "Add HSR–Haralur Bypass"
+      type: add_edge
+      params:
+        u: 10
+        v: 11
+        attrs:
+          edge_id: 9000
+          length_m: 1200.0
+          lanes: 2
+          highway: secondary
+          maxspeed_kmh: 40
+          free_flow_speed_kmh: 35.0
+          free_flow_time_s: 123.4
+          capacity_pcu_per_hr: 2210.0
+          is_bridge: false
+          is_flyover: false
+          has_signal_at_v: false
+          name: "HSR–Haralur Bypass"
+          lanes_imputed: false
+          speed_imputed: false
+      cost_index: 0.6
+      feasibility: 0.7
+
+    - name: "Add Silk Board–Agara Flyover"
+      type: add_edge
+      params:
+        u: 0
+        v: 4
+        attrs:
+          edge_id: 9001
+          length_m: 900.0
+          lanes: 3
+          highway: trunk
+          maxspeed_kmh: 60
+          free_flow_speed_kmh: 50.0
+          free_flow_time_s: 64.8
+          capacity_pcu_per_hr: 4080.0
+          is_bridge: true
+          is_flyover: true
+          has_signal_at_v: false
+          name: "Silk Board–Agara Flyover"
+          lanes_imputed: false
+          speed_imputed: false
+      cost_index: 0.85
+      feasibility: 0.6
+
+    - name: "Close Agara Junction"
+      type: close_node
+      params: {node_id: 4}
+      cost_index: 0.05
+      feasibility: 0.95
