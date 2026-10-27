@@ -19,3 +19,12 @@ from .decision_layer import (                        # noqa: F401
     topsis_rank,
     monte_carlo_confidence,
 )
+from .optimizer import (                             # noqa: F401
+    InterventionLibrary,
+    SuggestedIntervention,
+    suggest_top3,
+)
+from .ml_components import (                         # noqa: F401
+    CongestionTrendPredictor,
+    AnomalyDetector,
+)
