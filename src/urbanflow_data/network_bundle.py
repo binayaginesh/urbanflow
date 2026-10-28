@@ -5,7 +5,7 @@ Module 1 and Module 2 (Simulation Engine).
 Member 2 imports this via::
 
     from urbanflow_data import load_network
-    net = load_network("data/processed")
+    net = load_network()  # or load_network("data/processed")
 """
 from __future__ import annotations
 
@@ -105,7 +105,6 @@ class NetworkBundle:
 
     def edges_in_polygon(self, polygon) -> list[int]:  # polygon: shapely.geometry.Polygon
         """Return list of edge_ids whose geometry intersects *polygon*."""
-        from shapely.geometry import mapping
         mask = self.edges.geometry.intersects(polygon)
         return self.edges.loc[mask, "edge_id"].tolist()
 
@@ -166,22 +165,24 @@ class NetworkBundle:
 
 # ── Loader ────────────────────────────────────────────────────────────────────
 
-def load_network(processed_dir: str | Path) -> NetworkBundle:
+def load_network(processed_dir: str | Path | None = None) -> NetworkBundle:
     """
-    Load the processed bundle from *processed_dir* and return a NetworkBundle.
+    Load the processed bundle from *processed_dir* or URBANFLOW_DATA_DIR and return a NetworkBundle.
 
     Example
     -------
     >>> from urbanflow_data import load_network
-    >>> net = load_network("data/processed")
+    >>> net = load_network()          # reads from URBANFLOW_DATA_DIR or data/processed
     >>> net.graph                     # networkx.MultiDiGraph
     >>> net.close_edge(42)            # returns modified copy
     """
-    p = Path(processed_dir)
+    from urbanflow_data.config import get_data_dir
+
+    p = get_data_dir(processed_dir)
 
     graph = nx.read_graphml(p / "network.graphml")
     # Restore integer node ids
-    mapping = {n: int(n) for n in graph.nodes() if n.isdigit()}
+    mapping = {n: int(n) for n in graph.nodes() if str(n).isdigit()}
     graph = nx.relabel_nodes(graph, mapping)
 
     try:
