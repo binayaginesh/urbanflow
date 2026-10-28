@@ -1,4 +1,4 @@
-﻿"""
+"""
 network_bundle.py – The ``NetworkBundle`` dataclass: the contract between
 Module 1 and Module 2 (Simulation Engine).
 
@@ -184,8 +184,15 @@ def load_network(processed_dir: str | Path) -> NetworkBundle:
     mapping = {n: int(n) for n in graph.nodes() if n.isdigit()}
     graph = nx.relabel_nodes(graph, mapping)
 
-    edges = gpd.read_parquet(p / "edges.parquet")
-    nodes = gpd.read_parquet(p / "nodes.parquet")
+    try:
+        edges = gpd.read_parquet(p / "edges.parquet")
+    except Exception:
+        edges = pd.read_parquet(p / "edges.parquet")
+
+    try:
+        nodes = gpd.read_parquet(p / "nodes.parquet")
+    except Exception:
+        nodes = pd.read_parquet(p / "nodes.parquet")
 
     bus_routes      = pd.read_parquet(p / "bus_routes.parquet")      if (p / "bus_routes.parquet").exists()      else pd.DataFrame()
     bus_stops       = pd.read_parquet(p / "bus_stops.parquet")       if (p / "bus_stops.parquet").exists()       else pd.DataFrame()
