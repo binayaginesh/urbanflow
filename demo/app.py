@@ -989,5 +989,85 @@ elif selected_page == "🛡️ Validation Harness":
         st.dataframe(df_int[["Status", "check", "detail"]], use_container_width=True, hide_index=True)
 
 elif selected_page == "🗄️ Pipeline & Data":
-    st.title("🗄️ Pipeline & Data")
-    st.info("Pipeline & Data will be wired in Step B6 (Raw vs processed inspector, metadata viewer, data dictionary).")
+    st.markdown(
+        f"""
+        <div class="command-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="command-title">🗄️ PIPELINE & DATA // PROVENANCE & SCHEMA INSPECTOR</h1>
+                    <p class="command-subtitle">RAW VS PROCESSED DATASETS, METADATA SPECIFICATIONS & DATA DICTIONARY REFERENCE</p>
+                </div>
+                <div>
+                    <span class="status-pill pill-cyan">DATA: {data_dir_path.name.upper()}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    p_tab1, p_tab2, p_tab3, p_tab4 = st.tabs([
+        "📂 Dataset Inspector",
+        "📋 Metadata & Provenance",
+        "📖 Data Dictionary",
+        "⚙️ Active Configuration",
+    ])
+
+    with p_tab1:
+        st.markdown('<div class="panel-card"><div class="panel-title">📂 Processed Data Table Browser</div></div>', unsafe_allow_html=True)
+        available_tables = {
+            "Edges (Road Segments)": net.edges,
+            "Nodes (Junctions)": net.nodes,
+            "Bus Routes (BMTC)": net.bus_routes,
+            "Bus Route Edges (Sequence)": net.bus_route_edges,
+            "Bus Stops": net.bus_stops,
+            "Metro Stations (Namma Metro)": net.metro_stations if net.metro_stations is not None else pd.DataFrame(),
+            "Calibrated Edge Speeds": net.edge_speeds,
+        }
+        chosen_table_name = st.selectbox("Select Table to Inspect", list(available_tables.keys()), index=0)
+        df_target = available_tables[chosen_table_name]
+
+        if df_target.empty:
+            st.info("This table is empty in the current data directory.")
+        else:
+            col_info1, col_info2 = st.columns([1, 3])
+            col_info1.metric("Rows", len(df_target))
+            col_info1.metric("Columns", len(df_target.columns))
+            with col_info2:
+                st.caption(f"**Schema Data Types:** `{dict(zip(df_target.columns, [str(t) for t in df_target.dtypes]))}`")
+
+            # Clean display (convert geometry or bytes for table viewing)
+            disp_df = df_target.copy()
+            for c in disp_df.columns:
+                if str(disp_df[c].dtype) == "geometry" or c == "geometry":
+                    disp_df[c] = disp_df[c].astype(str)
+
+            st.dataframe(disp_df, use_container_width=True)
+
+    with p_tab2:
+        st.markdown('<div class="panel-card"><div class="panel-title">📋 Dataset Metadata & Provenance</div></div>', unsafe_allow_html=True)
+        pm1, pm2 = st.columns(2)
+        with pm1:
+            st.markdown("**Build Metadata (`metadata.json`)**")
+            st.json(net.meta)
+            st.markdown("**BPR Parameters (`bpr_params.json`)**")
+            st.json(net.bpr_params)
+        with pm2:
+            st.markdown("**Provenance Record (`data/PROVENANCE.md`)**")
+            prov_file = ROOT / "data" / "PROVENANCE.md"
+            if prov_file.exists():
+                st.markdown(prov_file.read_text(encoding="utf-8"))
+            else:
+                st.info("PROVENANCE.md not found.")
+
+    with p_tab3:
+        st.markdown('<div class="panel-card"><div class="panel-title">📖 Schema Data Dictionary (`docs/DATA_DICTIONARY.md`)</div></div>', unsafe_allow_html=True)
+        dict_file = ROOT / "docs" / "DATA_DICTIONARY.md"
+        if dict_file.exists():
+            st.markdown(dict_file.read_text(encoding="utf-8"))
+        else:
+            st.info("DATA_DICTIONARY.md not found.")
+
+    with p_tab4:
+        st.markdown('<div class="panel-card"><div class="panel-title">⚙️ Active Configuration (`config/config.yaml`)</div></div>', unsafe_allow_html=True)
+        st.json(cfg)
