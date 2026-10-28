@@ -16,3 +16,8 @@ typing-extensions>=4.13.2
 numpy>=1.26
 scipy>=1.13
 scikit-learn>=1.4
+# Stage B — Dashboard, Visualization, PDF & Testing deps
+streamlit>=1.35.0
+plotly>=5.20.0
+reportlab>=4.1.0
+playwright>=1.40.0

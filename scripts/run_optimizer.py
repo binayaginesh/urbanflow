@@ -1,6 +1,7 @@
 """
 scripts/run_optimizer.py
 CLI entry point for the top-3 intervention optimizer.
+Respects URBANFLOW_DATA_DIR.
 
 Usage:
     python scripts/run_optimizer.py --slot morning_peak
@@ -16,10 +17,12 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from urbanflow_data.config import get_data_dir
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="UrbanFlow – Top-3 Intervention Optimizer (Stage A)"
+        description="UrbanFlow – Top-3 Intervention Optimizer (Stage A & B)"
     )
     parser.add_argument(
         "--slot",
@@ -29,16 +32,16 @@ def main() -> int:
     )
     parser.add_argument(
         "--data",
-        default=str(ROOT / "data" / "processed"),
-        help="Path to processed data directory (default: data/processed)",
+        default=None,
+        help="Path to processed data directory (default: URBANFLOW_DATA_DIR or data/processed)",
     )
     args = parser.parse_args()
 
-    processed = Path(args.data)
+    processed = get_data_dir(args.data) if args.data else get_data_dir(ROOT / "data" / "processed")
 
     # ── Generate demo data if not present ────────────────────────────────────
     if not (processed / "network.graphml").exists():
-        print("[optimizer] No processed data found; generating synthetic demo data...")
+        print(f"[optimizer] No processed data found; generating synthetic demo data at {processed}...")
         sys.path.insert(0, str(ROOT / "demo"))
         import generate_demo_data
         generate_demo_data.build(processed)
