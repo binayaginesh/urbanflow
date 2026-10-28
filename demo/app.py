@@ -32,6 +32,7 @@ from urbanflow_data.transit_analysis import (
     compute_route_metrics,
     metro_interchanges,
 )
+from urbanflow_data.validation_harness import run_validation
 from urbanflow_data.dashboard_cache import (
     clear_cache,
     get_cached_simulation,
@@ -47,6 +48,7 @@ from urbanflow_data.dashboard_ui import (
     build_change_delta_map,
     build_comparison_bar_chart,
     build_comparison_matrix,
+    build_error_by_group_chart,
     build_flow_animation_and_heatmap,
     build_highway_distribution_chart,
     build_network_map,
@@ -54,6 +56,7 @@ from urbanflow_data.dashboard_ui import (
     build_speed_comparison_chart,
     build_transit_map,
     build_trend_prediction_chart,
+    build_validation_scatter,
     build_verdict_card_html,
     build_waterfall_chart,
     get_custom_css,
@@ -888,8 +891,102 @@ elif selected_page == "🚌 Transit & Metro":
             st.caption("Metro headways and ridership are not part of the processed dataset and are therefore not shown.")
 
 elif selected_page == "🛡️ Validation Harness":
-    st.title("🛡️ Validation Harness")
-    st.info("Validation Harness will be wired in Step B7 (BPR error metrics, calibration tests, hold-out corridors).")
+    st.markdown(
+        f"""
+        <div class="command-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="command-title">🛡️ VALIDATION HARNESS // MODEL CALIBRATION & INTEGRITY</h1>
+                    <p class="command-subtitle">BPR CONGESTION ERROR METRICS, CORRIDOR HOLD-OUT VALIDATION & GRAPH INTEGRITY TESTS</p>
+                </div>
+                <div>
+                    <span class="status-pill pill-cyan">SLOT: {time_slot.upper()}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Compute/retrieve simulations for all 4 slots for validation
+    all_slots = ["night_offpeak", "morning_peak", "midday", "evening_peak"]
+    sims_by_slot = {}
+    for s in all_slots:
+        sims_by_slot[s] = get_cached_simulation(
+            f"val_sim_{s}",
+            lambda slot_name=s: sim.simulate(net.graph, time_slot=slot_name, scenario_name="Baseline")
+        )
+
+    val_report = run_validation(net, sims_by_slot, cfg, root=ROOT)
+
+    for note in val_report.notes:
+        st.info(f"ℹ️ {note}")
+
+    # Top KPI Metrics
+    vk1, vk2, vk3, vk4 = st.columns(4)
+    vk1.metric("Reference Type", val_report.reference_label.upper())
+    
+    rmse_val = val_report.edge_overall.get("rmse")
+    vk2.metric("Overall RMSE", f"{rmse_val:.2f} km/h" if rmse_val is not None else "N/A")
+
+    mape_val = val_report.edge_overall.get("mape_pct")
+    vk3.metric("Overall MAPE", f"{mape_val:.1f}%" if mape_val is not None else "N/A")
+
+    int_pass = val_report.integrity_passed
+    vk4.metric(
+        "Bundle Integrity",
+        "PASS (All Valid)" if int_pass else "FAIL",
+        f"{sum(1 for c in val_report.integrity if c['passed'])}/{len(val_report.integrity)} checks",
+        delta_color="normal" if int_pass else "inverse",
+    )
+
+    val_tab1, val_tab2, val_tab3 = st.tabs([
+        "📊 Edge Speed Agreement",
+        "🛣️ Corridor Hold-Out Validation",
+        "🔍 Bundle Integrity Suite",
+    ])
+
+    with val_tab1:
+        st.markdown('<div class="panel-card"><div class="panel-title">📈 Observed vs Simulated Edge Speed Parity</div></div>', unsafe_allow_html=True)
+        vcol1, vcol2 = st.columns([1.6, 1.4])
+        with vcol1:
+            fig_scat = build_validation_scatter(
+                val_report.edge_df,
+                reference_label=f"{val_report.reference_label} speed (km/h)"
+            )
+            st.plotly_chart(fig_scat, use_container_width=True)
+        with vcol2:
+            st.markdown("**Error Metrics by Time Slot**")
+            if not val_report.edge_by_slot.empty:
+                st.dataframe(val_report.edge_by_slot, use_container_width=True, hide_index=True)
+                fig_slot_err = build_error_by_group_chart(val_report.edge_by_slot, "time_slot", "Error (km/h) by Time Slot")
+                st.plotly_chart(fig_slot_err, use_container_width=True)
+
+        st.markdown("**Error Metrics by Highway Classification**")
+        if not val_report.edge_by_class.empty:
+            st.dataframe(val_report.edge_by_class, use_container_width=True, hide_index=True)
+
+    with val_tab2:
+        st.markdown('<div class="panel-card"><div class="panel-title">🛣️ 70/30 Hold-Out Corridor Calibration Split</div></div>', unsafe_allow_html=True)
+        if val_report.corridor_df.empty:
+            st.warning("No manual field observations loaded yet. Hold-out calibration tests will activate in Stage C.")
+        else:
+            hc1, hc2 = st.columns(2)
+            with hc1:
+                st.markdown("**Calibration Set Metrics (70%)**")
+                cal_m = val_report.calibration_metrics
+                st.json(cal_m)
+            with hc2:
+                st.markdown("**Hold-Out Test Set Metrics (30%)**")
+                hold_m = val_report.holdout_metrics
+                st.json(hold_m)
+            st.dataframe(val_report.corridor_df, use_container_width=True, hide_index=True)
+
+    with val_tab3:
+        st.markdown('<div class="panel-card"><div class="panel-title">🔍 Automated Network & Bundle Integrity Tests</div></div>', unsafe_allow_html=True)
+        df_int = pd.DataFrame(val_report.integrity)
+        df_int["Status"] = df_int["passed"].apply(lambda p: "✅ PASS" if p else "❌ FAIL")
+        st.dataframe(df_int[["Status", "check", "detail"]], use_container_width=True, hide_index=True)
 
 elif selected_page == "🗄️ Pipeline & Data":
     st.title("🗄️ Pipeline & Data")
