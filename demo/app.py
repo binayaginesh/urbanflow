@@ -25,6 +25,7 @@ from urbanflow_data.decision_layer import (
     explain,
     monte_carlo_confidence,
 )
+from urbanflow_data.optimizer import suggest_top3
 from urbanflow_data.dashboard_cache import (
     clear_cache,
     get_cached_simulation,
@@ -34,8 +35,11 @@ from urbanflow_data.dashboard_cache import (
     set_offline_mode,
 )
 from urbanflow_data.dashboard_ui import (
+    build_ai_suggest_card_html,
     build_bottleneck_table,
     build_change_delta_map,
+    build_comparison_bar_chart,
+    build_comparison_matrix,
     build_flow_animation_and_heatmap,
     build_highway_distribution_chart,
     build_network_map,
@@ -477,8 +481,139 @@ elif selected_page == "🧪 Scenario Lab":
 # PLACEHOLDERS FOR REMAINING STAGE B PAGES
 # ═══════════════════════════════════════════════════════════════════════════════
 elif selected_page == "⚖️ Compare & Recommend":
-    st.title("⚖️ Compare & Recommend")
-    st.info("Compare & Recommend will be wired in Step B4 (Multi-scenario side-by-side comparison & AI Suggests via suggest_top3 optimizer).")
+    st.markdown(
+        f"""
+        <div class="command-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="command-title">⚖️ COMPARE & RECOMMEND // DECISION MATRIX</h1>
+                    <p class="command-subtitle">SIDE-BY-SIDE MULTI-SCENARIO BENCHMARKING & "AI SUGGESTS" TOP-3 INTERVENTIONS</p>
+                </div>
+                <div>
+                    <span class="status-pill pill-cyan">SLOT: {time_slot.upper()}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    tab_compare, tab_ai = st.tabs(["📊 Multi-Scenario Comparison Matrix", "🤖 AI Suggests (TOPSIS Ranked)"])
+
+    scen_candidates = [
+        {"name": "Baseline (Current State)", "net": net, "cost": 0.0, "feas": 1.0},
+        {"name": "Close Silk Board Junction", "net": net.close_node(0), "cost": 0.1, "feas": 0.95},
+        {
+            "name": "Add HSR-Haralur Bypass",
+            "net": net.add_edge(
+                10, 11,
+                edge_id=9000, length_m=1200.0, lanes=2,
+                highway="secondary", maxspeed_kmh=40,
+                free_flow_speed_kmh=35.0, free_flow_time_s=123.4,
+                capacity_pcu_per_hr=2200.0,
+                is_bridge=False, is_flyover=False, has_signal_at_v=False,
+                name="HSR-Haralur Bypass",
+            ),
+            "cost": 0.35, "feas": 0.90,
+        },
+        {"name": "VIP Convoy Diversion", "net": net.close_node(0).close_node(1), "cost": 0.15, "feas": 0.85},
+    ]
+
+    with tab_compare:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">📋 Multi-Criteria Performance Matrix</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        matrix_data = []
+        weights = cfg["decision_intelligence"]["criteria_weights"]
+        thresholds = cfg["decision_intelligence"]["verdict_thresholds"]
+
+        for cand in scen_candidates:
+            cname = cand["name"]
+            ckey = cname.replace(" ", "_").replace("(", "").replace(")", "").replace("→", "to")
+            cnet = cand["net"]
+
+            def _run(g=cnet.graph, name=cname):
+                return sim.simulate(g, time_slot=time_slot, scenario_name=name)
+
+            res = get_cached_simulation(f"comp_{ckey}_{time_slot}", _run)
+
+            if cname == "Baseline (Current State)":
+                matrix_data.append({
+                    "name": cname,
+                    "verdict": "BASELINE",
+                    "score": 0.500,
+                    "speed": res.mean_speed_kmh,
+                    "delta_speed": 0.0,
+                    "congestion": res.mean_congestion_ratio,
+                    "delta_congestion": 0.0,
+                    "travel_time_min": res.total_travel_time_s / 60.0,
+                    "delta_tt_min": 0.0,
+                    "cost_index": cand["cost"],
+                    "feasibility": cand["feas"],
+                })
+            else:
+                sm_cand = ScenarioMetrics(cname, res, baseline_res, cost_index=cand["cost"], feasibility=cand["feas"])
+                score_cand = score_scenario(sm_cand, weights)
+                label_cand = verdict(score_cand, thresholds)
+
+                matrix_data.append({
+                    "name": cname,
+                    "verdict": label_cand,
+                    "score": score_cand,
+                    "speed": res.mean_speed_kmh,
+                    "delta_speed": sm_cand.delta_speed,
+                    "congestion": res.mean_congestion_ratio,
+                    "delta_congestion": sm_cand.delta_congestion,
+                    "travel_time_min": res.total_travel_time_s / 60.0,
+                    "delta_tt_min": (res.total_travel_time_s - baseline_res.total_travel_time_s) / 60.0,
+                    "cost_index": cand["cost"],
+                    "feasibility": cand["feas"],
+                })
+
+        df_matrix = build_comparison_matrix(matrix_data)
+        st.dataframe(df_matrix, use_container_width=True, hide_index=True)
+
+        st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+        bc1, bc2 = st.columns(2)
+        with bc1:
+            fig_speed_cmp = build_comparison_bar_chart(matrix_data, metric="speed", title="Average Network Speed (km/h) - Higher is Better")
+            st.plotly_chart(fig_speed_cmp, use_container_width=True)
+        with bc2:
+            fig_cong_cmp = build_comparison_bar_chart(matrix_data, metric="congestion", title="Mean Congestion Ratio (x) - Lower is Better")
+            st.plotly_chart(fig_cong_cmp, use_container_width=True)
+
+    with tab_ai:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">🤖 AI Suggests — Autonomous Intervention Optimization</div>
+                <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
+                    Stage A TOPSIS algorithm evaluates all library candidates across speed, congestion, transit delay, emissions, and cost trade-offs.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        def _get_top3():
+            return suggest_top3(
+                base_graph=net.graph,
+                bpr_params=net.bpr_params,
+                time_slot=time_slot,
+                cfg=cfg,
+                bus_route_edges=net.bus_route_edges if not net.bus_route_edges.empty else None,
+            )
+
+        top3 = get_cached_simulation(f"optimizer_top3_{time_slot}", _get_top3)
+
+        for rank, s in enumerate(top3, 1):
+            st.markdown(build_ai_suggest_card_html(rank, s), unsafe_allow_html=True)
 
 elif selected_page == "💡 AI Insights":
     st.title("💡 AI Insights")

@@ -776,3 +776,109 @@ def build_waterfall_chart(
         showlegend=False,
     )
     return fig
+
+
+def build_comparison_matrix(scenarios_data: list[dict[str, Any]]) -> pd.DataFrame:
+    """Format a dataframe comparing metrics across multiple scenarios."""
+    rows = []
+    for s in scenarios_data:
+        rows.append({
+            "Scenario": s["name"],
+            "Verdict": s.get("verdict", "-"),
+            "Score": f"{s.get('score', 0.0):.3f}",
+            "Avg Speed (km/h)": f"{s.get('speed', 0.0):.1f}",
+            "Speed Δ": f"{s.get('delta_speed', 0.0):+.1f}",
+            "Congestion (x)": f"{s.get('congestion', 0.0):.2f}x",
+            "Congestion Δ": f"{s.get('delta_congestion', 0.0):+.2f}x",
+            "Travel Time (min)": f"{s.get('travel_time_min', 0.0):.1f}",
+            "Travel Time Δ": f"{s.get('delta_tt_min', 0.0):+.1f}",
+            "Cost Index": f"{s.get('cost_index', 0.0):.0%}",
+            "Feasibility": f"{s.get('feasibility', 1.0):.0%}",
+        })
+    return pd.DataFrame(rows)
+
+
+def build_comparison_bar_chart(
+    scenarios_data: list[dict[str, Any]],
+    metric: str = "speed",
+    title: str = "Average Speed (km/h)",
+) -> go.Figure:
+    """Bar chart comparing a key metric across candidate scenarios."""
+    names = [s["name"] for s in scenarios_data]
+    vals = [s.get(metric, 0.0) for s in scenarios_data]
+    verdicts = [s.get("verdict", "") for s in scenarios_data]
+
+    colors = []
+    for v in verdicts:
+        if v == "RECOMMENDED":
+            colors.append("#10B981")
+        elif v == "MODERATE":
+            colors.append("#F59E0B")
+        elif v == "NOT RECOMMENDED":
+            colors.append("#EF4444")
+        else:
+            colors.append("#38BDF8")
+
+    fig = go.Figure(
+        go.Bar(
+            x=names,
+            y=vals,
+            marker_color=colors,
+            text=[f"{v:.1f}" for v in vals],
+            textposition="auto",
+        )
+    )
+    fig.update_layout(
+        title=dict(text=title, font=dict(color="#F1F5F9", size=14)),
+        paper_bgcolor="#0F172A",
+        plot_bgcolor="#0F172A",
+        font=dict(color="#E2E8F0", family="Inter"),
+        margin=dict(l=20, r=20, t=40, b=30),
+        height=280,
+        yaxis=dict(gridcolor="#1E293B", color="#94A3B8"),
+        xaxis=dict(color="#94A3B8"),
+    )
+    return fig
+
+
+def build_ai_suggest_card_html(rank: int, s: Any) -> str:
+    """Build a styled card for an AI Suggestion."""
+    colors = {
+        "RECOMMENDED": {"bg": "rgba(16, 185, 129, 0.12)", "border": "#10B981", "badge": "#10B981"},
+        "MODERATE": {"bg": "rgba(245, 158, 11, 0.12)", "border": "#F59E0B", "badge": "#F59E0B"},
+        "NOT RECOMMENDED": {"bg": "rgba(239, 68, 68, 0.12)", "border": "#EF4444", "badge": "#EF4444"},
+    }
+    cfg = colors.get(s.verdict_label, colors["MODERATE"])
+    rank_colors = {1: "#FFD700", 2: "#C0C0C0", 3: "#CD7F32"}
+    r_col = rank_colors.get(rank, "#38BDF8")
+
+    return f"""
+    <div style="background:{cfg['bg']}; border:1px solid {cfg['border']}; border-radius:10px; padding:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="background:{r_col}; color:#0B0F19; font-weight:800; font-size:0.85rem; padding:3px 10px; border-radius:6px;">
+                    RANK #{rank}
+                </span>
+                <div>
+                    <div style="font-size:1.15rem; font-weight:700; color:#FFFFFF;">{s.name}</div>
+                    <div style="font-size:0.75rem; color:#94A3B8;">Candidate Strategy</div>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <span style="display:inline-block; padding:3px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700; background:{cfg['border']}; color:#FFFFFF;">
+                    {s.verdict_label}
+                </span>
+                <div style="font-size:0.8rem; color:#94A3B8; margin-top:4px;">
+                    TOPSIS: <b style="color:#00E5FF;">{s.topsis_score:.4f}</b> | Score: <b>{s.composite_score:.3f}</b>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:12px; background:#0F172A; border-radius:6px; padding:10px 14px; font-size:0.85rem; color:#E2E8F0; line-height:1.4;">
+            {s.explanation}
+        </div>
+        <div style="display:flex; gap:16px; margin-top:10px; font-size:0.75rem; color:#94A3B8;">
+            <span>Cost Index: <b style="color:#F1F5F9;">{s.cost_index:.0%}</b></span>
+            <span>Feasibility: <b style="color:#F1F5F9;">{s.feasibility:.0%}</b></span>
+        </div>
+    </div>
+    """
