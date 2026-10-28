@@ -952,3 +952,162 @@ def build_anomaly_gauge(score: float, is_anomaly: bool) -> go.Figure:
         height=280,
     )
     return fig
+
+
+
+# ── Stage B6: Transit & Metro ─────────────────────────────────────────────────
+_ROUTE_PALETTE = ["#00E5FF", "#F59E0B", "#A855F7", "#10B981", "#EC4899", "#3B82F6", "#F97316", "#84CC16"]
+
+
+def _dark_layout(fig: go.Figure, title: str | None = None, height: int = 320) -> go.Figure:
+    """Apply the shared dark command-center chart layout."""
+    fig.update_layout(
+        title=dict(text=title, font=dict(color="#F1F5F9", size=14)) if title else None,
+        paper_bgcolor="#0F172A",
+        plot_bgcolor="#0F172A",
+        font=dict(color="#E2E8F0", family="Inter"),
+        margin=dict(l=20, r=20, t=40 if title else 10, b=30),
+        height=height,
+        yaxis=dict(gridcolor="#1E293B", color="#94A3B8"),
+        xaxis=dict(gridcolor="#1E293B", color="#94A3B8"),
+        legend=dict(font=dict(color="#94A3B8", size=11)),
+    )
+    return fig
+
+
+def build_transit_map(
+    net: NetworkBundle,
+    route_metrics: pd.DataFrame | None = None,
+    interchanges: pd.DataFrame | None = None,
+    scenario_graph: Any = None,
+) -> go.Figure:
+    """
+    Offline map of bus routes over the road network plus metro stations.
+    Route edges removed in the scenario graph are drawn dashed red.
+    """
+    theme = get_offline_map_theme()
+    fig = go.Figure()
+    edges_idx = net.edges.set_index("edge_id")
+
+    # Background road network (muted)
+    xs: list[Any] = []
+    ys: list[Any] = []
+    for _, e in net.edges.iterrows():
+        xs += [e["lon_u"], e["lon_v"], None]
+        ys += [e["lat_u"], e["lat_v"], None]
+    fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color="#334155", width=1.5),
+                             hoverinfo="skip", name="Road network"))
+
+    live: set[int] | None = None
+    if scenario_graph is not None:
+        live = {int(d["edge_id"]) for _, _, d in scenario_graph.edges(data=True) if d.get("edge_id") is not None}
+
+    delay_map: dict[str, float] = {}
+    if route_metrics is not None and not route_metrics.empty:
+        delay_map = dict(zip(route_metrics["route_id"], route_metrics["delay_min"]))
+
+    cut_x: list[Any] = []
+    cut_y: list[Any] = []
+    for i, rid in enumerate(net.bus_route_edges["route_id"].drop_duplicates().tolist() if not net.bus_route_edges.empty else []):
+        seq = net.bus_route_edges[net.bus_route_edges["route_id"] == rid].sort_values("seq")
+        rx: list[Any] = []
+        ry: list[Any] = []
+        for eid in seq["edge_id"].astype(int):
+            if eid not in edges_idx.index:
+                continue
+            e = edges_idx.loc[eid]
+            target_x, target_y = (cut_x, cut_y) if (live is not None and eid not in live) else (rx, ry)
+            target_x += [e["lon_u"], e["lon_v"], None]
+            target_y += [e["lat_u"], e["lat_v"], None]
+        d = delay_map.get(rid)
+        label = f"Route {rid}" + (f" (+{d:.1f} min)" if d is not None else "")
+        fig.add_trace(go.Scatter(x=rx, y=ry, mode="lines", line=dict(color=_ROUTE_PALETTE[i % len(_ROUTE_PALETTE)], width=4),
+                                 name=label, hoverinfo="name"))
+
+    if cut_x:
+        fig.add_trace(go.Scatter(x=cut_x, y=cut_y, mode="lines", line=dict(color="#FF1744", width=4, dash="dash"),
+                                 name="Disrupted by scenario", hoverinfo="name"))
+
+    ms = net.metro_stations
+    if ms is not None and not ms.empty:
+        hover = []
+        for _, s in ms.iterrows():
+            txt = f"<b>{s['name']}</b><br>Line: {s.get('line', 'n/a')}"
+            if interchanges is not None and not interchanges.empty:
+                row = interchanges[interchanges["station"] == s["name"]]
+                if not row.empty:
+                    r = row.iloc[0]
+                    txt += f"<br>Nearest junction: {r['nearest_junction']} ({r['distance_m']:.0f} m)"
+                    txt += f"<br>Bus routes in walk radius: {r['bus_routes_within_radius'] or 'none'}"
+            hover.append(txt)
+        fig.add_trace(go.Scatter(x=ms["lon"], y=ms["lat"], mode="markers+text", text=ms["name"],
+                                 textposition="top center", textfont=dict(color="#FDE047", size=10),
+                                 marker=dict(size=13, color="#FDE047", symbol="square", line=dict(color="#0B0F19", width=2)),
+                                 hoverinfo="text", hovertext=hover, name="Namma Metro station"))
+
+    fig.update_layout(
+        paper_bgcolor=theme["paper_bgcolor"], plot_bgcolor=theme["plot_bgcolor"],
+        margin=dict(l=10, r=10, t=10, b=10), height=520,
+        xaxis=dict(title="Longitude", gridcolor=theme["grid_color"], zeroline=False, color="#64748B"),
+        yaxis=dict(title="Latitude", gridcolor=theme["grid_color"], zeroline=False, color="#64748B",
+                   scaleanchor="x", scaleratio=1.0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="#94A3B8", size=11)),
+    )
+    return fig
+
+
+def build_route_delay_chart(route_cmp: pd.DataFrame) -> go.Figure:
+    """Grouped bar chart of bus running time: baseline vs scenario, per route."""
+    fig = go.Figure()
+    if route_cmp is not None and not route_cmp.empty:
+        fig.add_trace(go.Bar(x=route_cmp["route_id"], y=route_cmp["sim_running_time_min_base"],
+                             name="Baseline", marker_color="#3B82F6"))
+        fig.add_trace(go.Bar(x=route_cmp["route_id"], y=route_cmp["sim_running_time_min_scen"],
+                             name="Scenario", marker_color="#F59E0B"))
+        fig.update_layout(barmode="group")
+    _dark_layout(fig, "Bus Running Time per Route (min) — Lower is Better")
+    fig.update_yaxes(title="minutes")
+    return fig
+
+
+# ── Stage B7: Validation Harness ──────────────────────────────────────────────
+_SLOT_COLORS = {"night_offpeak": "#818CF8", "morning_peak": "#F59E0B", "midday": "#10B981", "evening_peak": "#EC4899"}
+
+
+def build_validation_scatter(
+    df: pd.DataFrame,
+    obs_col: str = "observed_speed_kmh",
+    pred_col: str = "simulated_speed_kmh",
+    color_col: str = "time_slot",
+    title: str = "Simulated vs Reference Edge Speed (km/h)",
+    reference_label: str = "reference",
+) -> go.Figure:
+    """Observed-vs-predicted scatter with a y = x parity line."""
+    fig = go.Figure()
+    if df is not None and not df.empty:
+        for key, g in df.groupby(color_col):
+            fig.add_trace(go.Scatter(
+                x=g[obs_col], y=g[pred_col], mode="markers", name=str(key),
+                marker=dict(size=9, color=_SLOT_COLORS.get(str(key), "#38BDF8"), opacity=0.85,
+                            line=dict(color="#0B0F19", width=1)),
+                hovertemplate=f"{reference_label}: %{{x:.2f}}<br>model: %{{y:.2f}}<extra>{key}</extra>",
+            ))
+        lo = float(min(df[obs_col].min(), df[pred_col].min()))
+        hi = float(max(df[obs_col].max(), df[pred_col].max()))
+        fig.add_trace(go.Scatter(x=[lo, hi], y=[lo, hi], mode="lines", name="parity (y = x)",
+                                 line=dict(color="#64748B", dash="dot")))
+    _dark_layout(fig, title, height=380)
+    fig.update_xaxes(title=reference_label)
+    fig.update_yaxes(title="model")
+    return fig
+
+
+def build_error_by_group_chart(by_group: pd.DataFrame, key: str, title: str) -> go.Figure:
+    """Bar chart of RMSE and MAE per group (slot or road class)."""
+    fig = go.Figure()
+    if by_group is not None and not by_group.empty:
+        fig.add_trace(go.Bar(x=by_group[key], y=by_group["rmse"], name="RMSE", marker_color="#EF4444"))
+        fig.add_trace(go.Bar(x=by_group[key], y=by_group["mae"], name="MAE", marker_color="#F59E0B"))
+        fig.update_layout(barmode="group")
+    _dark_layout(fig, title, height=320)
+    return fig

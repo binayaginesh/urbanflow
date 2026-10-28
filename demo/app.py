@@ -27,6 +27,11 @@ from urbanflow_data.decision_layer import (
 )
 from urbanflow_data.optimizer import suggest_top3
 from urbanflow_data.ml_components import CongestionTrendPredictor, AnomalyDetector
+from urbanflow_data.transit_analysis import (
+    compare_route_metrics,
+    compute_route_metrics,
+    metro_interchanges,
+)
 from urbanflow_data.dashboard_cache import (
     clear_cache,
     get_cached_simulation,
@@ -45,7 +50,9 @@ from urbanflow_data.dashboard_ui import (
     build_flow_animation_and_heatmap,
     build_highway_distribution_chart,
     build_network_map,
+    build_route_delay_chart,
     build_speed_comparison_chart,
+    build_transit_map,
     build_trend_prediction_chart,
     build_verdict_card_html,
     build_waterfall_chart,
@@ -792,8 +799,93 @@ elif selected_page == "💡 AI Insights":
             )
 
 elif selected_page == "🚌 Transit & Metro":
-    st.title("🚌 Transit & Metro")
-    st.info("Transit & Metro will be wired in Step B6 (BMTC routes, delays, Namma Metro integration).")
+    st.markdown(
+        f"""
+        <div class="command-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="command-title">🚌 TRANSIT & METRO // BMTC + NAMMA METRO</h1>
+                    <p class="command-subtitle">BUS ROUTE RUNNING TIME, SCENARIO-INDUCED BUS DELAY & METRO INTERCHANGE ACCESS</p>
+                </div>
+                <div>
+                    <span class="status-pill pill-cyan">SLOT: {time_slot.upper()}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if net.bus_routes.empty:
+        st.warning("No bus routes found in the current data directory. Transit analysis is unavailable.")
+    else:
+        transit_presets = {
+            "Baseline (no intervention)": lambda: net,
+            "Close Silk Board Junction (Node 0)": lambda: net.close_node(0),
+            "VIP Convoy Diversion (Node 0 & Node 1 Closed)": lambda: net.close_node(0).close_node(1),
+        }
+        t_choice = st.selectbox("Scenario to evaluate for bus impact", list(transit_presets.keys()), index=1)
+        t_net = transit_presets[t_choice]()
+        t_key = "".join(c if c.isalnum() else "_" for c in t_choice)
+
+        def _run_transit_scen():
+            return sim.simulate(t_net.graph, time_slot=time_slot, scenario_name=t_choice)
+
+        t_res = baseline_res if t_net is net else get_cached_simulation(f"transit_{t_key}_{time_slot}", _run_transit_scen)
+
+        base_routes = compute_route_metrics(net, baseline_res, time_slot, scenario_graph=net.graph)
+        scen_routes = compute_route_metrics(net, t_res, time_slot, scenario_graph=t_net.graph)
+        route_cmp = compare_route_metrics(base_routes, scen_routes)
+        walk_r = float(cfg.get("transit", {}).get("interchange_walk_radius_m", 400))
+        inter_df = metro_interchanges(net, walk_radius_m=walk_r)
+
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Bus Routes Modelled", f"{len(base_routes)}")
+        k2.metric(
+            "Network Bus Delay (engine)",
+            f"{t_res.bus_delay_s / 60:.1f} min",
+            f"{(t_res.bus_delay_s - baseline_res.bus_delay_s) / 60:+.1f} min vs baseline",
+            delta_color="inverse",
+        )
+        k3.metric("Route Links Disrupted", f"{int(scen_routes['edges_disrupted'].sum())}")
+        n_inter = int(inter_df["is_interchange"].sum()) if not inter_df.empty else 0
+        k4.metric("Metro–Bus Interchanges", f"{n_inter} / {len(inter_df)}", help=f"Bus route within {walk_r:.0f} m walk radius (config: transit.interchange_walk_radius_m)")
+
+        tm_col1, tm_col2 = st.columns([1.6, 1.4])
+        with tm_col1:
+            st.markdown('<div class="panel-card"><div class="panel-title">🗺️ Bus Routes & Metro Stations</div></div>', unsafe_allow_html=True)
+            st.plotly_chart(
+                build_transit_map(net, scen_routes, inter_df, scenario_graph=None if t_net is net else t_net.graph),
+                use_container_width=True,
+            )
+        with tm_col2:
+            st.markdown('<div class="panel-card"><div class="panel-title">⏱️ Running Time Impact</div></div>', unsafe_allow_html=True)
+            st.plotly_chart(build_route_delay_chart(route_cmp), use_container_width=True)
+            if not route_cmp.empty:
+                st.dataframe(
+                    route_cmp[["route_id", "route_name", "sim_running_time_min_base", "sim_running_time_min_scen",
+                               "delta_running_time_min", "edges_disrupted"]].rename(columns={
+                        "route_id": "Route", "route_name": "Description",
+                        "sim_running_time_min_base": "Base (min)", "sim_running_time_min_scen": "Scenario (min)",
+                        "delta_running_time_min": "Δ (min)", "edges_disrupted": "Links Cut",
+                    }),
+                    use_container_width=True, hide_index=True,
+                )
+
+        st.markdown("**Route Service Detail (scenario)**")
+        st.dataframe(scen_routes, use_container_width=True, hide_index=True)
+        st.caption(
+            "Headway comes from bus_routes.parquet (peak headway in morning/evening peak, off-peak otherwise). "
+            "Bus-minutes lost per hour = route delay × buses per hour. Disrupted links are excluded from running-time "
+            "sums because diversion paths for buses are not modelled."
+        )
+
+        st.markdown("**Namma Metro Interchange Access**")
+        if inter_df.empty:
+            st.info("No metro stations in the current data directory.")
+        else:
+            st.dataframe(inter_df.drop(columns=["lat", "lon"]), use_container_width=True, hide_index=True)
+            st.caption("Metro headways and ridership are not part of the processed dataset and are therefore not shown.")
 
 elif selected_page == "🛡️ Validation Harness":
     st.title("🛡️ Validation Harness")
