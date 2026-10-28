@@ -26,6 +26,7 @@ from urbanflow_data.decision_layer import (
     monte_carlo_confidence,
 )
 from urbanflow_data.optimizer import suggest_top3
+from urbanflow_data.ml_components import CongestionTrendPredictor, AnomalyDetector
 from urbanflow_data.dashboard_cache import (
     clear_cache,
     get_cached_simulation,
@@ -36,6 +37,7 @@ from urbanflow_data.dashboard_cache import (
 )
 from urbanflow_data.dashboard_ui import (
     build_ai_suggest_card_html,
+    build_anomaly_gauge,
     build_bottleneck_table,
     build_change_delta_map,
     build_comparison_bar_chart,
@@ -44,6 +46,7 @@ from urbanflow_data.dashboard_ui import (
     build_highway_distribution_chart,
     build_network_map,
     build_speed_comparison_chart,
+    build_trend_prediction_chart,
     build_verdict_card_html,
     build_waterfall_chart,
     get_custom_css,
@@ -616,8 +619,177 @@ elif selected_page == "⚖️ Compare & Recommend":
             st.markdown(build_ai_suggest_card_html(rank, s), unsafe_allow_html=True)
 
 elif selected_page == "💡 AI Insights":
-    st.title("💡 AI Insights")
-    st.info("AI Insights will be wired in Step B5 (Natural language explanations, ML CongestionTrendPredictor, AnomalyDetector).")
+    st.markdown(
+        f"""
+        <div class="command-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="command-title">💡 AI INSIGHTS // EXPLANATORY & PREDICTIVE INTELLIGENCE</h1>
+                    <p class="command-subtitle">TRANSPARENT MCDA EXPLANATIONS, ML CONGESTION FORECASTS & SIMULATION ANOMALY MONITOR</p>
+                </div>
+                <div>
+                    <span class="status-pill pill-cyan">SLOT: {time_slot.upper()}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    ai_tab1, ai_tab2, ai_tab3 = st.tabs([
+        "🗣️ Decision Explanations",
+        "📈 ML Congestion Predictor",
+        "🛡️ Anomaly Detection Monitor",
+    ])
+
+    with ai_tab1:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">🧠 Deterministic Decision Explainability</div>
+                <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
+                    UrbanFlow uses deterministic rule templates driven strictly by normalized mathematical deltas (no stochastic hallucinations or ungrounded generative numbers).
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        sample_scen_choice = st.selectbox(
+            "Select Scenario to Inspect Explanation",
+            [
+                "Close Silk Board Junction (Node 0)",
+                "Add HSR-Haralur Bypass (Node 10 → 11)",
+                "VIP Convoy Diversion (Node 0 & Node 1 Closed)",
+            ],
+            index=0,
+        )
+
+        if sample_scen_choice == "Close Silk Board Junction (Node 0)":
+            test_net = net.close_node(0)
+            cost = 0.1
+            feas = 0.95
+        elif sample_scen_choice == "Add HSR-Haralur Bypass (Node 10 → 11)":
+            test_net = net.add_edge(10, 11, edge_id=9000, length_m=1200.0, lanes=2, highway="secondary", maxspeed_kmh=40, free_flow_speed_kmh=35.0, free_flow_time_s=123.4, capacity_pcu_per_hr=2200.0, is_bridge=False, is_flyover=False, has_signal_at_v=False, name="HSR-Haralur Bypass")
+            cost = 0.35
+            feas = 0.90
+        else:
+            test_net = net.close_node(0).close_node(1)
+            cost = 0.15
+            feas = 0.85
+
+        def _run_ai_scen():
+            return sim.simulate(test_net.graph, time_slot=time_slot, scenario_name=sample_scen_choice)
+
+        t_res = get_cached_simulation(f"ai_exp_{sample_scen_choice}_{time_slot}", _run_ai_scen)
+        t_sm = ScenarioMetrics(sample_scen_choice, t_res, baseline_res, cost_index=cost, feasibility=feas)
+        t_score = score_scenario(t_sm, cfg["decision_intelligence"]["criteria_weights"])
+        t_label = verdict(t_score, cfg["decision_intelligence"]["verdict_thresholds"])
+        t_exp = explain(t_sm, t_score, t_label)
+
+        st.markdown(
+            f"""
+            <div style="background:#111827; border-left:4px solid #38BDF8; border-radius:8px; padding:18px; margin-bottom:18px;">
+                <div style="font-size:0.75rem; text-transform:uppercase; color:#94A3B8; font-weight:700;">Synthesized Justification</div>
+                <div style="font-size:1.1rem; color:#F8FAFC; margin-top:6px; line-height:1.5;">{t_exp}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        ec1, ec2, ec3, ec4 = st.columns(4)
+        with ec1:
+            st.metric("Congestion Delta", f"{t_sm.delta_congestion:+.2f}x", delta_color="inverse")
+        with ec2:
+            st.metric("Mean Speed Delta", f"{t_sm.delta_speed:+.1f} km/h")
+        with ec3:
+            st.metric("Bus Delay Delta", f"{t_sm.delta_bus_delay:+.0f} s", delta_color="inverse")
+        with ec4:
+            st.metric("Emissions Index Delta", f"{t_sm.delta_emissions:+.2f}x", delta_color="inverse")
+
+    with ai_tab2:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">📈 Machine Learning Trend Forecast (Ridge Regression)</div>
+                <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
+                    Predicts time-of-day congestion ratios across road classes based on calibrated corridor observations.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Train / Cache Congestion Trend Predictor
+        @st.cache_resource
+        def get_trained_predictor():
+            df_hist = net.edge_speeds.merge(net.edges[["edge_id", "highway"]], on="edge_id", how="left")
+            pred = CongestionTrendPredictor()
+            pred.fit(df_hist)
+            return pred
+
+        predictor = get_trained_predictor()
+
+        hw_select = st.selectbox(
+            "Select Road Classification to Forecast",
+            ["primary", "secondary", "trunk", "tertiary", "residential"],
+            index=0,
+        )
+
+        fig_pred = build_trend_prediction_chart(predictor, highway_class=hw_select)
+        st.plotly_chart(fig_pred, use_container_width=True)
+
+        st.caption(f"Model: Ridge Regression (L2 regularization) | Historical training points: {predictor._n_samples} | Status: Online")
+
+    with ai_tab3:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">🛡️ Simulation Stability & Anomaly Monitor (Isolation Forest)</div>
+                <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
+                    Flags statistically divergent simulation runs that deviate severely from expected corridor network equilibrium.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        @st.cache_resource
+        def get_trained_detector():
+            ensemble = []
+            for s in ["morning_peak", "evening_peak", "midday", "night_offpeak"]:
+                ensemble.append(sim.simulate(net.graph, s, "Base"))
+                ensemble.append(sim.simulate(net.close_node(0).graph, s, "Close 0"))
+            det = AnomalyDetector()
+            det.fit(ensemble)
+            return det
+
+        detector = get_trained_detector()
+        anom_score = detector.score(baseline_res)
+        is_anom = detector.is_anomaly(baseline_res)
+
+        anom_c1, anom_c2 = st.columns([1, 1.5])
+        with anom_c1:
+            fig_gauge = build_anomaly_gauge(anom_score, is_anom)
+            st.plotly_chart(fig_gauge, use_container_width=True)
+        with anom_c2:
+            st.markdown(
+                f"""
+                <div style="background:#111827; border:1px solid #1E293B; border-radius:10px; padding:18px;">
+                    <h4 style="margin:0 0 10px 0; color:#F1F5F9;">Network Stability Status</h4>
+                    <p style="color:#94A3B8; font-size:0.88rem; line-height:1.5;">
+                        Current simulation state is classified as <b>{'NORMAL' if not is_anom else 'ANOMALOUS'}</b>.
+                        Metric vector sits safely within the learned corridor envelope.
+                    </p>
+                    <ul style="color:#94A3B8; font-size:0.85rem; line-height:1.6;">
+                        <li>Anomaly Score: <b style="color:#00E5FF;">{anom_score:.4f}</b> (Threshold: 0.0)</li>
+                        <li>Isolation Trees: 100 Estimators</li>
+                        <li>Contamination Factor: 10%</li>
+                    </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 elif selected_page == "🚌 Transit & Metro":
     st.title("🚌 Transit & Metro")

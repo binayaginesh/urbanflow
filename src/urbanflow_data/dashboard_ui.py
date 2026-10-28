@@ -882,3 +882,73 @@ def build_ai_suggest_card_html(rank: int, s: Any) -> str:
         </div>
     </div>
     """
+
+
+def build_trend_prediction_chart(
+    predictor: Any,
+    highway_class: str = "primary",
+) -> go.Figure:
+    """Build a diurnal congestion ratio forecast across time slots."""
+    slots = ["night_offpeak", "morning_peak", "midday", "evening_peak"]
+    slot_labels = ["Night Off-Peak\n(23:00)", "Morning Peak\n(08:00)", "Midday Flow\n(14:00)", "Evening Peak\n(18:30)"]
+    preds = [predictor.predict(s, highway_class) for s in slots]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=slot_labels,
+            y=preds,
+            mode="lines+markers",
+            line=dict(color="#00E5FF", width=3.5),
+            marker=dict(size=10, color="#38BDF8", symbol="diamond"),
+            name=f"Predicted ({highway_class})",
+        )
+    )
+
+    fig.update_layout(
+        title=dict(text=f"Predicted Diurnal Congestion Ratio — {highway_class.upper()}", font=dict(color="#F1F5F9", size=14)),
+        paper_bgcolor="#0F172A",
+        plot_bgcolor="#0F172A",
+        font=dict(color="#E2E8F0", family="Inter"),
+        margin=dict(l=20, r=20, t=40, b=30),
+        height=300,
+        yaxis=dict(title="Congestion Ratio (x)", gridcolor="#1E293B", color="#94A3B8"),
+        xaxis=dict(color="#94A3B8"),
+    )
+    return fig
+
+
+def build_anomaly_gauge(score: float, is_anomaly: bool) -> go.Figure:
+    """Build an indicator gauge for simulation anomaly score."""
+    color = "#EF4444" if is_anomaly else "#10B981"
+    status_text = "ANOMALOUS OUTLIER" if is_anomaly else "NORMAL DISTRIBUTION"
+
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=score,
+            title={"text": f"Isolation Forest Anomaly Score<br><span style='font-size:0.8rem;color:{color}'>{status_text}</span>", "font": {"size": 14, "color": "#F1F5F9"}},
+            gauge={
+                "axis": {"range": [-0.5, 0.5], "tickcolor": "#94A3B8"},
+                "bar": {"color": color},
+                "steps": [
+                    {"range": [-0.5, 0.0], "color": "rgba(239, 68, 68, 0.2)"},
+                    {"range": [0.0, 0.5], "color": "rgba(16, 185, 129, 0.2)"},
+                ],
+                "threshold": {
+                    "line": {"color": "#F59E0B", "width": 3},
+                    "thickness": 0.75,
+                    "value": 0.0,
+                },
+            },
+        )
+    )
+
+    fig.update_layout(
+        paper_bgcolor="#0F172A",
+        plot_bgcolor="#0F172A",
+        font=dict(color="#E2E8F0", family="Inter"),
+        margin=dict(l=20, r=20, t=50, b=20),
+        height=280,
+    )
+    return fig
