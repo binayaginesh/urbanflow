@@ -18,6 +18,13 @@ sys.path.insert(0, str(ROOT / "src"))
 from urbanflow_data.config import get_data_dir, load_config
 from urbanflow_data.network_bundle import load_network
 from urbanflow_data.simulation_engine import TrafficSimulator
+from urbanflow_data.decision_layer import (
+    ScenarioMetrics,
+    score_scenario,
+    verdict,
+    explain,
+    monte_carlo_confidence,
+)
 from urbanflow_data.dashboard_cache import (
     clear_cache,
     get_cached_simulation,
@@ -28,9 +35,13 @@ from urbanflow_data.dashboard_cache import (
 )
 from urbanflow_data.dashboard_ui import (
     build_bottleneck_table,
+    build_change_delta_map,
+    build_flow_animation_and_heatmap,
     build_highway_distribution_chart,
     build_network_map,
     build_speed_comparison_chart,
+    build_verdict_card_html,
+    build_waterfall_chart,
     get_custom_css,
 )
 
@@ -128,7 +139,6 @@ with st.sidebar:
         st.success(f"Purged {count} cached scenario runs.")
 
     st.markdown("---")
-    # System Info
     data_dir_path = get_data_dir()
     st.caption(f"📁 **Data Source:** `{data_dir_path.name}/`")
     st.caption(f"🌐 **Nodes:** `{net.graph.number_of_nodes()}` | **Edges:** `{net.graph.number_of_edges()}`")
@@ -147,7 +157,6 @@ baseline_res = get_cached_simulation(f"baseline_{time_slot}", compute_baseline)
 # PAGE 1: COMMAND CENTER
 # ═══════════════════════════════════════════════════════════════════════════════
 if selected_page == "🎛️ Command Center":
-    # Top System Header Banner
     st.markdown(
         f"""
         <div class="command-header">
@@ -281,7 +290,6 @@ if selected_page == "🎛️ Command Center":
             fig_speed = build_speed_comparison_chart(net.edges, baseline_res)
             st.plotly_chart(fig_speed, use_container_width=True)
 
-        # Bottlenecks summary table
         st.markdown("**Critical Corridor Hotspots**")
         df_bn = build_bottleneck_table(net.edges, baseline_res)
         if not df_bn.empty:
@@ -305,12 +313,169 @@ if selected_page == "🎛️ Command Center":
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PLACEHOLDERS FOR REMAINING STAGE B PAGES
+# PAGE 2: SCENARIO LAB
 # ═══════════════════════════════════════════════════════════════════════════════
 elif selected_page == "🧪 Scenario Lab":
-    st.title("🧪 Scenario Lab")
-    st.info("Scenario Lab will be fully wired in Step B3 (Before/After maps, change delta map, animated flows, traffic-light verdict card, confidence gauge, waterfall chart).")
+    st.markdown(
+        f"""
+        <div class="command-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="command-title">🧪 SCENARIO LAB // INTERVENTION ENGINE</h1>
+                    <p class="command-subtitle">SIMULATE CANDIDATE TRANSPORTATION SCENARIOS & EVALUATE DECISION VERDICTS</p>
+                </div>
+                <div>
+                    <span class="status-pill pill-cyan">SLOT: {time_slot.upper()}</span>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    # Scenario Selection Box
+    s_col1, s_col2, s_col3 = st.columns([2, 1, 1])
+    with s_col1:
+        preset = st.selectbox(
+            "Select Candidate Intervention",
+            [
+                "Close Silk Board Junction (Node 0)",
+                "Add HSR-Haralur Bypass Road (Node 10 → 11)",
+                "VIP Convoy Diversion (Node 0 & Node 1 Closed)",
+                "Custom Node Closure",
+            ],
+            index=0,
+        )
+
+    with s_col2:
+        cost_idx = st.slider("Capital Cost Index", 0.0, 1.0, 0.15 if "Close" in preset else 0.40, step=0.05)
+    with s_col3:
+        feas_idx = st.slider("Feasibility Score", 0.5, 1.0, 0.95, step=0.05)
+
+    # Build Scenario NetworkBundle non-destructively
+    scenario_name = preset
+    scenario_key = preset.replace(" ", "_").replace("(", "").replace(")", "").replace("→", "to")
+
+    if preset == "Close Silk Board Junction (Node 0)":
+        scen_net = net.close_node(0)
+    elif preset == "Add HSR-Haralur Bypass Road (Node 10 → 11)":
+        scen_net = net.add_edge(
+            10, 11,
+            edge_id=9000, length_m=1200.0, lanes=2,
+            highway="secondary", maxspeed_kmh=40,
+            free_flow_speed_kmh=35.0, free_flow_time_s=123.4,
+            capacity_pcu_per_hr=2200.0,
+            is_bridge=False, is_flyover=False, has_signal_at_v=False,
+            name="HSR-Haralur Bypass",
+        )
+    elif preset == "VIP Convoy Diversion (Node 0 & Node 1 Closed)":
+        scen_net = net.close_node(0).close_node(1)
+    elif preset == "Custom Node Closure":
+        nodes_df = net.nodes
+        choices = {int(r["node_id"]): r["name"] for _, r in nodes_df.iterrows()}
+        selected_node = st.selectbox("Select Junction Node to Close", options=list(choices.keys()), format_func=lambda n: f"#{n} - {choices[n]}")
+        scenario_name = f"Close Junction {choices[selected_node]}"
+        scenario_key = f"custom_close_{selected_node}"
+        scen_net = net.close_node(selected_node)
+
+    # Run / Retrieve Simulation
+    def run_scen():
+        return sim.simulate(scen_net.graph, time_slot=time_slot, scenario_name=scenario_name)
+
+    scen_res = get_cached_simulation(f"scen_{scenario_key}_{time_slot}", run_scen)
+
+    # Compute Decision Intelligence Verdict
+    weights = cfg["decision_intelligence"]["criteria_weights"]
+    thresholds = cfg["decision_intelligence"]["verdict_thresholds"]
+
+    sm = ScenarioMetrics(
+        scenario_name=scenario_name,
+        sim=scen_res,
+        baseline=baseline_res,
+        cost_index=cost_idx,
+        feasibility=feas_idx,
+    )
+    score = score_scenario(sm, weights)
+    verdict_label = verdict(score, thresholds)
+    explanation = explain(sm, score, verdict_label)
+
+    def run_mc():
+        return monte_carlo_confidence(
+            sm=sm,
+            simulator=sim,
+            scenario_graph=scen_net.graph,
+            baseline_graph=net.graph,
+            time_slot=time_slot,
+            weights=weights,
+            thresholds=thresholds,
+            n_runs=40,
+            rng_seed=42,
+        )
+
+    confidence = get_cached_simulation(f"mc_{scenario_key}_{time_slot}", run_mc)
+
+    # 1. Verdict Card
+    st.markdown(
+        build_verdict_card_html(score, verdict_label, confidence, explanation, sm),
+        unsafe_allow_html=True,
+    )
+
+    # 2. Multi-Criteria Score Waterfall & Visualizations
+    v_col1, v_col2 = st.columns([1.1, 1.9])
+
+    with v_col1:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">📉 MCDA Score Contribution Waterfall</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        fig_waterfall = build_waterfall_chart(sm, score, weights)
+        st.plotly_chart(fig_waterfall, use_container_width=True)
+
+    with v_col2:
+        st.markdown(
+            """
+            <div class="panel-card">
+                <div class="panel-title">🗺️ Spatial Simulation & Impact Analysis</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        tab_map, tab_delta, tab_flow = st.tabs([
+            "🔄 Before vs After Maps",
+            "⚡ Change (Delta) Map",
+            "🌊 Vehicle Flow & Heatmap",
+        ])
+
+        with tab_map:
+            sub_c1, sub_c2 = st.columns(2)
+            with sub_c1:
+                st.caption(f"**Baseline Network** (Speed: {baseline_res.mean_speed_kmh:.1f} km/h)")
+                fig_b = build_network_map(net, baseline_res, highlight_bottlenecks=False, offline=is_offline_mode())
+                st.plotly_chart(fig_b, use_container_width=True)
+            with sub_c2:
+                st.caption(f"**{scenario_name}** (Speed: {scen_res.mean_speed_kmh:.1f} km/h)")
+                fig_s = build_network_map(scen_net, scen_res, highlight_bottlenecks=False, offline=is_offline_mode())
+                st.plotly_chart(fig_s, use_container_width=True)
+
+        with tab_delta:
+            st.caption("Corridor link velocity delta vs baseline: **Green** = Relieved / Faster, **Red** = Congested / Slower, **Muted** = Unchanged.")
+            fig_delta = build_change_delta_map(net, baseline_res, scen_res, offline=is_offline_mode())
+            st.plotly_chart(fig_delta, use_container_width=True)
+
+        with tab_flow:
+            st.caption("Assigned traffic flows: Width proportional to PCU volume; Heatmap particles indicate vehicle density.")
+            fig_flow = build_flow_animation_and_heatmap(scen_net, scen_res, offline=is_offline_mode())
+            st.plotly_chart(fig_flow, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PLACEHOLDERS FOR REMAINING STAGE B PAGES
+# ═══════════════════════════════════════════════════════════════════════════════
 elif selected_page == "⚖️ Compare & Recommend":
     st.title("⚖️ Compare & Recommend")
     st.info("Compare & Recommend will be wired in Step B4 (Multi-scenario side-by-side comparison & AI Suggests via suggest_top3 optimizer).")
