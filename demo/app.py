@@ -33,6 +33,7 @@ from urbanflow_data.transit_analysis import (
     metro_interchanges,
 )
 from urbanflow_data.validation_harness import run_validation
+from urbanflow_data.report_generator import generate_planner_pdf_report
 from urbanflow_data.dashboard_cache import (
     clear_cache,
     get_cached_simulation,
@@ -435,6 +436,24 @@ elif selected_page == "🧪 Scenario Lab":
     st.markdown(
         build_verdict_card_html(score, verdict_label, confidence, explanation, sm),
         unsafe_allow_html=True,
+    )
+
+    # PDF Decision Brief Download
+    pdf_bytes = generate_planner_pdf_report(
+        scenario_metrics=sm,
+        score=score,
+        verdict_label=verdict_label,
+        confidence=confidence,
+        explanation=explanation,
+        time_slot=time_slot,
+        weights=weights,
+    )
+    st.download_button(
+        label="📄 Download Planner Decision Brief (PDF)",
+        data=pdf_bytes,
+        file_name=f"UrbanFlow_Decision_Brief_{scenario_key}_{time_slot}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
     )
 
     # 2. Multi-Criteria Score Waterfall & Visualizations
