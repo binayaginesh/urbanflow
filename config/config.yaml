@@ -171,7 +171,7 @@ logging:
   level: "INFO"
   log_file: "urbanflow_data.log"
 
-# == Decision Intelligence / AI Layer (Stage A – Mehrin) =======================
+# == Decision Intelligence / AI Layer (Stage A - Mehrin & Stage C - Alent) =====
 decision_intelligence:
   # Weights for the 4 traffic criteria. Must sum to 1.0.
   # congestion_ratio: lower is better; speed: higher is better;
@@ -183,87 +183,141 @@ decision_intelligence:
     emissions_index:  0.15
 
   # Composite score boundaries (score in [0, 1]).
-  # score >= recommended  → RECOMMENDED
-  # score >= moderate     → MODERATE
-  # score <  moderate     → NOT RECOMMENDED
+  # score >= recommended  -> RECOMMENDED
+  # score >= moderate     -> MODERATE
+  # score <  moderate     -> NOT RECOMMENDED
   verdict_thresholds:
     recommended: 0.60
     moderate:    0.40
 
   # Monte Carlo confidence estimation
   monte_carlo_n_runs: 200
-  # Relative standard deviation applied to demand when perturbing (0.15 = ±15%)
+  # Relative standard deviation applied to demand when perturbing (0.15 = +/-15%)
   monte_carlo_demand_sigma_pct: 0.15
 
-  # Optimizer candidate interventions (used by optimizer.py / scripts/run_optimizer.py)
+  # Optimizer candidate interventions (used by optimizer.py / scripts/run_optimizer.py / scripts/run_library.py)
   # type: close_node | close_edge | add_edge
   # params: node_id or u/v/attrs
-  # cost_index: 0–1 (0 = free, 1 = very expensive) – used in scoring
-  # feasibility: 0–1 (1 = fully feasible)
+  # cost_index: 0-1 relative index (0 = free, 1 = very expensive) - used in TOPSIS
+  # estimated_cost_inr_crore: left null where official DPR/BMRCL/BBMP cost estimates are unavailable
+  # feasibility: 0-1 (1 = fully feasible)
   optimizer_candidates:
-    - name: "Close Silk Board Junction"
-      type: close_node
-      params: {node_id: 0}
-      cost_index: 0.1
-      feasibility: 0.9
+    - name: "Upgrade 1st Main - BTM Relief Corridor"
+      type: add_edge
+      params:
+        u: 1
+        v: 40
+        attrs:
+          edge_id: 9001
+          length_m: 180.0
+          lanes: 3
+          highway: primary
+          maxspeed_kmh: 50
+          free_flow_speed_kmh: 45.0
+          free_flow_time_s: 10.0
+          capacity_pcu_per_hr: 3825.0
+          is_bridge: false
+          is_flyover: false
+          has_signal_at_v: false
+          name: "1st Main - BTM Relief Corridor"
+          lanes_imputed: false
+          speed_imputed: false
+      cost_index: 0.35
+      estimated_cost_inr_crore: null
+      feasibility: 0.95
 
-    - name: "Close HSR BDA Node"
-      type: close_node
-      params: {node_id: 1}
-      cost_index: 0.1
-      feasibility: 0.8
+    - name: "Add Madiwala-BTM Collector Bypass"
+      type: add_edge
+      params:
+        u: 52
+        v: 40
+        attrs:
+          edge_id: 9002
+          length_m: 220.0
+          lanes: 3
+          highway: primary
+          maxspeed_kmh: 50
+          free_flow_speed_kmh: 45.0
+          free_flow_time_s: 12.0
+          capacity_pcu_per_hr: 3825.0
+          is_bridge: false
+          is_flyover: false
+          has_signal_at_v: false
+          name: "Madiwala-BTM Collector Bypass"
+          lanes_imputed: false
+          speed_imputed: false
+      cost_index: 0.50
+      estimated_cost_inr_crore: null
+      feasibility: 0.92
 
-    - name: "Add HSR–Haralur Bypass"
+    - name: "Add HSR-Haralur Connector"
       type: add_edge
       params:
         u: 10
         v: 11
         attrs:
           edge_id: 9000
-          length_m: 1200.0
+          length_m: 350.0
           lanes: 2
           highway: secondary
           maxspeed_kmh: 40
-          free_flow_speed_kmh: 35.0
-          free_flow_time_s: 123.4
+          free_flow_speed_kmh: 36.0
+          free_flow_time_s: 28.0
           capacity_pcu_per_hr: 2210.0
           is_bridge: false
           is_flyover: false
           has_signal_at_v: false
-          name: "HSR–Haralur Bypass"
+          name: "HSR-Haralur Connector"
           lanes_imputed: false
           speed_imputed: false
-      cost_index: 0.6
-      feasibility: 0.7
+      cost_index: 0.45
+      estimated_cost_inr_crore: null
+      feasibility: 0.88
 
-    - name: "Add Silk Board–Agara Flyover"
+    - name: "Add Silk Board-BTM Elevated Flyover"
       type: add_edge
       params:
-        u: 0
-        v: 4
+        u: 48
+        v: 69
         attrs:
-          edge_id: 9001
-          length_m: 900.0
+          edge_id: 9003
+          length_m: 750.0
           lanes: 3
           highway: trunk
           maxspeed_kmh: 60
-          free_flow_speed_kmh: 50.0
-          free_flow_time_s: 64.8
+          free_flow_speed_kmh: 55.0
+          free_flow_time_s: 25.0
           capacity_pcu_per_hr: 4080.0
           is_bridge: true
           is_flyover: true
           has_signal_at_v: false
-          name: "Silk Board–Agara Flyover"
+          name: "Silk Board-BTM Elevated Flyover"
           lanes_imputed: false
           speed_imputed: false
-      cost_index: 0.85
-      feasibility: 0.6
+      cost_index: 0.80
+      estimated_cost_inr_crore: null
+      feasibility: 0.85
 
-    - name: "Close Agara Junction"
+    - name: "Close Silk Board Flyover North (Node 48)"
       type: close_node
-      params: {node_id: 4}
-      cost_index: 0.05
-      feasibility: 0.95
+      params: {node_id: 48}
+      cost_index: 0.10
+      estimated_cost_inr_crore: null
+      feasibility: 0.80
+
+    - name: "Close BTM Udupi Garden Signal (Node 69)"
+      type: close_node
+      params: {node_id: 69}
+      cost_index: 0.10
+      estimated_cost_inr_crore: null
+      feasibility: 0.70
+
+    - name: "Close Madiwala Police Station Jct (Node 52)"
+      type: close_node
+      params: {node_id: 52}
+      cost_index: 0.10
+      estimated_cost_inr_crore: null
+      feasibility: 0.75
 
 # == Validation Harness (Stage B7 - Swathy) ===================================
 validation:
@@ -343,3 +397,71 @@ road_overrides:
       lat: 12.9294
       lon: 77.6162
       is_signalised: true
+
+# == Events, VIP Corridors & Demand Zones (Stage C6 - Alent Varkey) ============
+scenarios_and_zones:
+  events:
+    - event_id: "EVT_METRO_WORK"
+      name: "Silk Board Metro Viaduct Construction Work Zone"
+      node_id: 48
+      corridor: "Outer Ring Road / Silk Board"
+      capacity_multiplier: 0.65
+      active_slots: ["morning_peak", "midday", "evening_peak"]
+      estimated_cost_inr_crore: null
+      description: "Partial lane barricading at Central Silk Board interchange for Namma Metro Blue/Yellow Line station works."
+    - event_id: "EVT_MADIWALA_MARKET"
+      name: "Madiwala Market Peak Vendor Spillover"
+      node_id: 161
+      corridor: "Hosur Road / Madiwala"
+      capacity_multiplier: 0.70
+      active_slots: ["morning_peak", "evening_peak"]
+      estimated_cost_inr_crore: null
+      description: "Curbside loading and pedestrian spillover near Madiwala Market Junction."
+    - event_id: "EVT_WATERLOGGING_BTM"
+      name: "Monsoon Waterlogging at BTM Udupi Garden Signal"
+      node_id: 69
+      corridor: "Outer Ring Road (BTM)"
+      capacity_multiplier: 0.55
+      active_slots: ["evening_peak"]
+      estimated_cost_inr_crore: null
+      description: "Stormwater drainage bottleneck reducing effective approach discharge at Udupi Garden junction."
+
+  vip_routes:
+    - vip_route_id: "VIP_HOSUR_SILKBOARD"
+      name: "St Johns - Madiwala - Silk Board Priority Corridor"
+      waypoints_nodes: [109, 161, 52, 48]
+      corridor: "Hosur Road (NH-44)"
+      priority_level: "high"
+      description: "North-South emergency / VIP green-wave corridor along Hosur Road from St Johns approach to Silk Board."
+    - vip_route_id: "VIP_ORR_BTM"
+      name: "Silk Board - BTM Udupi Garden - Water Tank Priority Corridor"
+      waypoints_nodes: [48, 69, 37]
+      corridor: "Outer Ring Road"
+      priority_level: "medium"
+      description: "East-West arterial priority corridor linking Silk Board Interchange to BTM Layout."
+
+  demand_zones:
+    - zone_id: "TAZ_BTM_WEST"
+      name: "BTM Layout 1st & 2nd Stage Residential"
+      land_use: "residential_commercial"
+      centroid_lat: 12.9210
+      centroid_lon: 77.6145
+      anchor_node_id: 37
+    - zone_id: "TAZ_MADIWALA_HUB"
+      name: "Madiwala Commercial & Transit Hub"
+      land_use: "commercial_mixed"
+      centroid_lat: 12.9225
+      centroid_lon: 77.6195
+      anchor_node_id: 161
+    - zone_id: "TAZ_SILKBOARD_ORR"
+      name: "Silk Board Multimodal Interchange"
+      land_use: "transit_arterial"
+      centroid_lat: 12.9182
+      centroid_lon: 77.6219
+      anchor_node_id: 48
+    - zone_id: "TAZ_SARJAPURA_KRUPANIDHI"
+      name: "Koramangala South / Sarjapura Road Institutional Zone"
+      land_use: "institutional_tech"
+      centroid_lat: 12.9273
+      centroid_lon: 77.6257
+      anchor_node_id: 2
