@@ -1,4 +1,4 @@
-﻿"""
+"""
 config.py – Load and strictly validate config/config.yaml.
 
 All other modules obtain the config via ``get_config()``.
@@ -8,6 +8,7 @@ reload (e.g., in tests).
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -186,3 +187,39 @@ def get_time_slot_names(cfg: dict[str, Any] | None = None) -> list[str]:
     """Return list of time slot machine-names in config order."""
     cfg = cfg or get_config()
     return [slot["name"] for slot in cfg["time_slots"]]
+
+
+def get_data_dir(
+    explicit: str | Path | None = None,
+    *,
+    root: str | Path | None = None,
+) -> Path:
+    """
+    Resolve the processed data directory.
+
+    Resolution order:
+    1. Explicit path if passed (unless it is a generic default 'data/processed'
+       and URBANFLOW_DATA_DIR is set).
+    2. URBANFLOW_DATA_DIR environment variable if defined.
+    3. cfg["paths"]["processed_dir"] resolved against root / cwd.
+    4. Fallback: <root>/data/processed.
+    """
+    env_dir = os.environ.get("URBANFLOW_DATA_DIR")
+
+    if explicit is not None and str(explicit).strip():
+        explicit_norm = str(explicit).replace("\\", "/").rstrip("/")
+        # If caller passed default "data/processed" but env var is set, prefer env var
+        if env_dir and explicit_norm.endswith("data/processed"):
+            return Path(env_dir).expanduser().resolve()
+        return Path(explicit).expanduser().resolve()
+
+    if env_dir and env_dir.strip():
+        return Path(env_dir).expanduser().resolve()
+
+    base = Path(root) if root else Path.cwd()
+    try:
+        cfg = get_config(root=root)
+        rel = cfg.get("paths", {}).get("processed_dir", "data/processed")
+        return (base / rel).resolve()
+    except Exception:
+        return (base / "data" / "processed").resolve()

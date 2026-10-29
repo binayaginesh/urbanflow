@@ -1,7 +1,8 @@
 """
 scripts/demo_check.py
-Smoke-test for Stage A: generates demo data if absent, loads the NetworkBundle,
+Smoke-test for Stage A & B: generates demo data if absent, loads the NetworkBundle,
 runs a baseline and a closure scenario, and asserts the metrics change.
+Respects URBANFLOW_DATA_DIR.
 
 Exit 0 on success, 1 on failure.  Used manually and in CI.
 """
@@ -12,19 +13,21 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from urbanflow_data.config import get_data_dir
+
 
 def main() -> int:
-    processed = ROOT / "data" / "processed"
+    processed = get_data_dir(ROOT / "data" / "processed")
 
     # ── 1. Generate demo data if not present ──────────────────────────────────
     if not (processed / "network.graphml").exists():
-        print("[demo_check] Generating synthetic demo data...")
+        print(f"[demo_check] Generating synthetic demo data at {processed}...")
         sys.path.insert(0, str(ROOT / "demo"))
         import generate_demo_data
         generate_demo_data.build(processed)
 
     # ── 2. Load the NetworkBundle ─────────────────────────────────────────────
-    print("[demo_check] Loading NetworkBundle...")
+    print(f"[demo_check] Loading NetworkBundle from {processed}...")
     from urbanflow_data.network_bundle import load_network
     net = load_network(processed)
     print(f"[demo_check] {net!r}")
@@ -76,8 +79,6 @@ def main() -> int:
     )
     new_road = sim.simulate(net_new_road.graph, time_slot="morning_peak", scenario_name="Add Road")
     print(f"  {new_road.summary()}")
-    # New road should carry positive volume on edge 9000 (if the simulator assigns flow)
-    # (This assertion is strengthened after A2; for now we just verify it runs.)
     print("[demo_check] Add-road scenario ran successfully [OK]")
 
     print("\n[demo_check] ALL CHECKS PASSED [OK]")

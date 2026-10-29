@@ -139,6 +139,9 @@ bpr_defaults:
 transit:
   max_snap_distance_m: 50
   gtfs_zip_path: null
+  # Stage B6: walking radius (m) used to flag a metro station as a bus-metro
+  # interchange in the dashboard. Planning assumption; refine in Stage C.
+  interchange_walk_radius_m: 400
 
 # == Traffic Baseline Sampling =================================================
 traffic_baseline:
@@ -261,3 +264,18 @@ decision_intelligence:
       params: {node_id: 4}
       cost_index: 0.05
       feasibility: 0.95
+
+# == Validation Harness (Stage B7 - Swathy) ===================================
+validation:
+  # Fraction of manually observed corridors held out from calibration (Stage C
+  # uses a 70/30 split). Split is deterministic per corridor id + seed.
+  holdout_fraction: 0.30
+  holdout_seed: 42
+  # Sanity range for reference congestion ratios (matches validate.py).
+  congestion_ratio_range: [0.9, 7.0]
+  # Max distance (m) between a sample-route endpoint and its snapped junction.
+  corridor_max_snap_m: 150
+  # Accuracy target on hold-out corridors (MAPE %). Left null on purpose: the
+  # target must be agreed with the guide in Stage C. While null, the harness
+  # reports metrics without a pass/fail verdict.
+  mape_target_pct: null

@@ -6,8 +6,8 @@ Update this file at the end of every stage. A stage may start only when the prev
 |---|---|---|---|---|---|
 | 0 Phase closed (old code, first simulator and dashboard) | Binaya | DONE | phase0-closed | 2026-10-15 | Original author has left the project |
 | A Engine upgrade + Decision AI | Mehrin | DONE | stage-a-done | 2026-10-27 | Branch: stage-a-decision (90/90 tests pass) |
-| B Dashboard + Validation harness | Swathy | NOT STARTED | stage-b-done | | Branch: stage-b-platform |
-| C Real data + Release | Alent | BLOCKED (needs B) | v1.0 | | Branch: stage-c-release |
+| B Dashboard + Validation harness | Swathy | DONE | stage-b-done | 2026-10-28 | Branch: stage-b-platform (146 tests, 7 dashboard pages, Playwright suite) |
+| C Real data + Release | Alent | NOT STARTED | v1.0 | | Branch: stage-c-release |
 
 State values: NOT STARTED, IN PROGRESS, DONE, BLOCKED (needs X).
 
