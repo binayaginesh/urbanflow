@@ -1,4 +1,4 @@
-﻿"""
+"""
 build_graph.py - Phase 2
 Add simulation-ready attributes to the cleaned graph.
 Every edge gets: edge_id, free_flow_speed, free_flow_time, capacity,
@@ -78,6 +78,24 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> None:
         ndata["is_signalised"] = nid in signal_nodes
         ndata["degree"] = G.degree(nid)
         ndata["is_junction"] = G.degree(nid) >= 3
+        if not ndata.get("name"):
+            ndata["name"] = f"Junction {nid}"
+
+    # Apply junction landmark names and signal overrides from config (Stage C3)
+    landmarks = cfg.get("road_overrides", {}).get("junction_landmarks", []) or []
+    for lm in landmarks:
+        lat, lon = float(lm["lat"]), float(lm["lon"])
+        best_nid = min(
+            G.nodes(),
+            key=lambda n: (float(G.nodes[n].get("y", 0)) - lat) ** 2 + (float(G.nodes[n].get("x", 0)) - lon) ** 2,
+        )
+        G.nodes[best_nid]["name"] = str(lm["name"])
+        if lm.get("is_signalised"):
+            G.nodes[best_nid]["is_signalised"] = True
+            signal_nodes.add(best_nid)
+    # Refresh has_signal_at_v after landmark signals
+    for u, v, k, data in G.edges(data=True, keys=True):
+        data["has_signal_at_v"] = v in signal_nodes
 
     n_edges = G.number_of_edges()
     n_nodes = G.number_of_nodes()
