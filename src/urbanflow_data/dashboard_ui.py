@@ -20,8 +20,6 @@ def get_custom_css() -> str:
     """Return dark command-center styling CSS."""
     return """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
 html, body, [class*="css"], .stMarkdown, .stText {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     color: #E2E8F0;
@@ -154,6 +152,7 @@ code, pre {
 def get_speed_color(speed_kmh: float, max_speed_kmh: float = 45.0) -> str:
     """Return hex color on a smooth red -> yellow -> green scale."""
     ratio = max(0.0, min(1.0, speed_kmh / max(1.0, max_speed_kmh)))
+    ratio = round(ratio * 12) / 12.0  # quantised: few distinct colours -> few plotly traces
     if ratio < 0.5:
         f = ratio * 2.0
         r = 245
@@ -165,6 +164,30 @@ def get_speed_color(speed_kmh: float, max_speed_kmh: float = 45.0) -> str:
         g = int(220 + 20 * f)
         b = 60
     return f"rgb({r},{g},{b})"
+
+
+def _grouped_line_traces(fig: go.Figure, segs: list) -> None:
+    """Draw many road segments with few traces (one per colour/width) plus one hover layer.
+
+    segs: list of (x0, y0, x1, y1, color, width, hover_text).
+    Per-edge traces made the maps very slow to render in the browser.
+    """
+    groups: dict = {}
+    hx: list = []
+    hy: list = []
+    ht: list = []
+    for x0, y0, x1, y1, color, width, hover in segs:
+        xs, ys = groups.setdefault((color, width), ([], []))
+        xs.extend([x0, x1, None])
+        ys.extend([y0, y1, None])
+        hx.append((x0 + x1) / 2.0)
+        hy.append((y0 + y1) / 2.0)
+        ht.append(hover)
+    for (color, width), (xs, ys) in groups.items():
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color=color, width=width),
+                                 hoverinfo="skip", showlegend=False))
+    fig.add_trace(go.Scatter(x=hx, y=hy, mode="markers", marker=dict(size=9, opacity=0),
+                             hoverinfo="text", hovertext=ht, showlegend=False))
 
 
 def build_network_map(
@@ -187,6 +210,7 @@ def build_network_map(
     fig = go.Figure()
 
     # Draw edge lines
+    _segs: list = []
     for _, edge in edges_df.iterrows():
         eid = int(edge["edge_id"])
         lat_u, lon_u = edge.get("lat_u"), edge.get("lon_u")
@@ -213,19 +237,11 @@ def build_network_map(
             f"Speed: {spd:.1f} km/h (Free Flow: {edge.get('free_flow_speed_kmh', 0):.1f} km/h)"
         )
         if is_bottleneck:
-            hover_txt += "<br><span style='color:#FF1744'><b>⚠️ BOTTLENECK</b></span>"
+            hover_txt += "<br><span style='color:#FF1744'><b>BOTTLENECK</b></span>"
 
-        fig.add_trace(
-            go.Scatter(
-                x=[lon_u, lon_v, None],
-                y=[lat_u, lat_v, None],
-                mode="lines",
-                line=dict(color=line_color, width=line_width),
-                hoverinfo="text",
-                hovertext=hover_txt,
-                showlegend=False,
-            )
-        )
+        _segs.append((lon_u, lat_u, lon_v, lat_v, line_color, line_width, hover_txt))
+
+    _grouped_line_traces(fig, _segs)
 
     # Draw junction nodes
     node_x = []
@@ -246,7 +262,7 @@ def build_network_map(
         node_txt.append(
             f"<b>Junction: {n.get('name', f'Node {nid}')}</b><br>"
             f"Node ID: #{nid}<br>"
-            f"Signalised: {'Yes 🚦' if is_sig else 'No'}"
+            f"Signalised: {'Yes ' if is_sig else 'No'}"
         )
         node_colors.append("#00E5FF" if is_sig else "#94A3B8")
 
@@ -443,6 +459,7 @@ def build_change_delta_map(
 
     fig = go.Figure()
 
+    _segs: list = []
     for _, edge in edges_df.iterrows():
         eid = int(edge["edge_id"])
         lat_u, lon_u = edge.get("lat_u"), edge.get("lon_u")
@@ -473,17 +490,9 @@ def build_change_delta_map(
             f"Impact: {status}"
         )
 
-        fig.add_trace(
-            go.Scatter(
-                x=[lon_u, lon_v, None],
-                y=[lat_u, lat_v, None],
-                mode="lines",
-                line=dict(color=color, width=width),
-                hoverinfo="text",
-                hovertext=hover_txt,
-                showlegend=False,
-            )
-        )
+        _segs.append((lon_u, lat_u, lon_v, lat_v, color, width, hover_txt))
+
+    _grouped_line_traces(fig, _segs)
 
     # Junction nodes
     node_x = [n["x"] for _, n in nodes_df.iterrows() if not pd.isna(n.get("x"))]
@@ -536,6 +545,7 @@ def build_flow_animation_and_heatmap(
     scatter_pts_color = []
     scatter_pts_size = []
 
+    _segs: list = []
     for _, edge in edges_df.iterrows():
         eid = int(edge["edge_id"])
         lat_u, lon_u = edge.get("lat_u"), edge.get("lon_u")
@@ -548,7 +558,7 @@ def build_flow_animation_and_heatmap(
         cap = edge.get("capacity_pcu_per_hr", 1000.0)
         vc_ratio = vol / max(1.0, cap)
 
-        width = 1.5 + 5.5 * min(1.0, vol / max_vol)
+        width = round((1.5 + 5.5 * min(1.0, vol / max_vol)) * 1.5) / 1.5  # quantised widths -> few traces
         color = get_speed_color(spd)
 
         hover_txt = (
@@ -558,17 +568,7 @@ def build_flow_animation_and_heatmap(
             f"Speed: {spd:.1f} km/h"
         )
 
-        fig.add_trace(
-            go.Scatter(
-                x=[lon_u, lon_v, None],
-                y=[lat_u, lat_v, None],
-                mode="lines",
-                line=dict(color=color, width=width),
-                hoverinfo="text",
-                hovertext=hover_txt,
-                showlegend=False,
-            )
-        )
+        _segs.append((lon_u, lat_u, lon_v, lat_v, color, width, hover_txt))
 
         mid_x = (lon_u + lon_v) / 2.0
         mid_y = (lat_u + lat_v) / 2.0
@@ -578,6 +578,7 @@ def build_flow_animation_and_heatmap(
         scatter_pts_size.append(min(16, max(5, int((vol / max_vol) * 15))))
         scatter_pts_color.append("#FF1744" if vc_ratio > 0.8 else ("#FFD600" if vc_ratio > 0.5 else "#00E5FF"))
 
+    _grouped_line_traces(fig, _segs)
     fig.add_trace(
         go.Scatter(
             x=scatter_pts_x,
@@ -625,9 +626,9 @@ def build_verdict_card_html(
 ) -> str:
     """Generate responsive dark-mode HTML verdict card with traffic-light indicators."""
     colors = {
-        "RECOMMENDED": {"bg": "rgba(16, 185, 129, 0.12)", "border": "#10B981", "badge": "#10B981", "icon": "🟢"},
-        "MODERATE": {"bg": "rgba(245, 158, 11, 0.12)", "border": "#F59E0B", "badge": "#F59E0B", "icon": "🟡"},
-        "NOT RECOMMENDED": {"bg": "rgba(239, 68, 68, 0.12)", "border": "#EF4444", "badge": "#EF4444", "icon": "🔴"},
+        "RECOMMENDED": {"bg": "rgba(16, 185, 129, 0.12)", "border": "#10B981", "badge": "#10B981", "icon": ""},
+        "MODERATE": {"bg": "rgba(245, 158, 11, 0.12)", "border": "#F59E0B", "badge": "#F59E0B", "icon": ""},
+        "NOT RECOMMENDED": {"bg": "rgba(239, 68, 68, 0.12)", "border": "#EF4444", "badge": "#EF4444", "icon": ""},
     }
     cfg = colors.get(verdict_label, colors["NOT RECOMMENDED"])
 

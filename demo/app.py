@@ -66,7 +66,7 @@ from urbanflow_data.dashboard_ui import (
 # ── Page Configuration ────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="UrbanFlow // Bengaluru Command Center",
-    page_icon="🚦",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -97,22 +97,27 @@ def get_cached_bundle():
 
 cfg, net, sim = get_cached_bundle()
 
+# Preset junctions: real landmark nodes (48 Silk Board Flyover North, 52 Madiwala Police Stn) when present.
+_nodes = set(int(n) for n in net.graph.nodes())
+PRESET_A = 48 if 48 in _nodes else 0
+PRESET_B = 52 if 52 in _nodes else 1
+
 
 # ── Sidebar Controls ──────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🚦 URBANFLOW // AGY-B")
+    st.markdown("### URBANFLOW // AGY-B")
     st.caption("AI-Powered Urban Mobility Decision Intelligence Platform")
     st.markdown("---")
 
     # Navigation Menu
     PAGES = [
-        "🎛️ Command Center",
-        "🧪 Scenario Lab",
-        "⚖️ Compare & Recommend",
-        "💡 AI Insights",
-        "🚌 Transit & Metro",
-        "🛡️ Validation Harness",
-        "🗄️ Pipeline & Data",
+        "Command Center",
+        "Scenario Lab",
+        "Compare & Recommend",
+        "AI Insights",
+        "Transit & Metro",
+        "Validation Harness",
+        "Pipeline & Data",
     ]
 
     selected_page = st.radio("Navigation", PAGES, index=0, label_visibility="collapsed")
@@ -134,11 +139,11 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.markdown("**⚙️ System Controls**")
+    st.markdown("**System Controls**")
 
     # Offline mode toggle
     offline_toggle = st.checkbox(
-        "🌐 Offline Mode (no internet / tiles)",
+        "Offline Mode (no internet / tiles)",
         value=is_offline_mode(),
         help="Disables all external map tile calls; operates purely with local coordinates.",
     )
@@ -146,21 +151,21 @@ with st.sidebar:
 
     # Demo cache mode toggle
     cache_toggle = st.checkbox(
-        "⚡ Demo Cache Mode",
+        "Demo Cache Mode",
         value=is_cache_mode(),
         help="Caches simulation runs to disk for instantaneous scenario demonstration.",
     )
     set_cache_mode(cache_toggle)
 
-    if st.button("🧹 Clear Simulation Cache", use_container_width=True):
+    if st.button("Clear Simulation Cache", use_container_width=True):
         count = clear_cache()
         st.success(f"Purged {count} cached scenario runs.")
 
     st.markdown("---")
     data_dir_path = get_data_dir()
-    st.caption(f"📁 **Data Source:** `{data_dir_path.name}/`")
-    st.caption(f"🌐 **Nodes:** `{net.graph.number_of_nodes()}` | **Edges:** `{net.graph.number_of_edges()}`")
-    st.caption(f"🚌 **Bus Routes:** `{len(net.bus_routes)}` | **BPR Params:** `{len(net.bpr_params)} classes`")
+    st.caption(f"**Data Source:** `{data_dir_path.name}/`")
+    st.caption(f"**Nodes:** `{net.graph.number_of_nodes()}` | **Edges:** `{net.graph.number_of_edges()}`")
+    st.caption(f"**Bus Routes:** `{len(net.bus_routes)}` | **BPR Params:** `{len(net.bpr_params)} classes`")
 
 
 # ── Run Baseline Simulation ───────────────────────────────────────────────────
@@ -174,13 +179,13 @@ baseline_res = get_cached_simulation(f"baseline_{time_slot}", compute_baseline)
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE 1: COMMAND CENTER
 # ═══════════════════════════════════════════════════════════════════════════════
-if selected_page == "🎛️ Command Center":
+if selected_page == "Command Center":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">🚦 URBANFLOW COMMAND CENTER</h1>
+                    <h1 class="command-title">URBANFLOW COMMAND CENTER</h1>
                     <p class="command-subtitle">BENGALURU CORRIDOR: SILK BOARD — HSR LAYOUT — KORAMANGALA — BTM</p>
                 </div>
                 <div style="display:flex; gap:8px;">
@@ -269,7 +274,7 @@ if selected_page == "🎛️ Command Center":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">🗺️ Real-Time Network Congestion & Topology</div>
+                <div class="panel-title">Real-Time Network Congestion & Topology</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -277,7 +282,7 @@ if selected_page == "🎛️ Command Center":
 
         filter_col1, filter_col2 = st.columns(2)
         with filter_col1:
-            highlight_bn = st.toggle("🚨 Highlight Bottleneck Corridors", value=True)
+            highlight_bn = st.toggle("Highlight Bottleneck Corridors", value=True)
         with filter_col2:
             st.caption(f"Projection: EPSG:4326 | Offline Canvas: {'Active' if is_offline_mode() else 'Standard'}")
 
@@ -293,13 +298,13 @@ if selected_page == "🎛️ Command Center":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">📊 Road Hierarchy & Speed Profile</div>
+                <div class="panel-title">Road Hierarchy & Speed Profile</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        subtab1, subtab2 = st.tabs(["🛣️ Highway Classes", "⚡ Speed vs Cap"])
+        subtab1, subtab2 = st.tabs(["Highway Classes", "Speed vs Cap"])
         with subtab1:
             fig_pie = build_highway_distribution_chart(net.edges)
             st.plotly_chart(fig_pie, use_container_width=True)
@@ -319,27 +324,27 @@ if selected_page == "🎛️ Command Center":
     st.markdown("---")
     qc1, qc2, qc3 = st.columns([1.5, 1, 1])
     with qc1:
-        st.markdown("#### 🚀 Ready to test interventions?")
+        st.markdown("#### Ready to test interventions?")
         st.caption("Inject flyovers, close junctions, or test VIP corridors in the Scenario Lab.")
     with qc2:
-        if st.button("⚡ Quick Re-Calibrate Baseline", use_container_width=True):
+        if st.button("Quick Re-Calibrate Baseline", use_container_width=True):
             with st.spinner("Recomputing BPR volume delay curves..."):
                 compute_baseline()
             st.success("Baseline state re-calibrated successfully!")
     with qc3:
-        st.info("Switch to **🧪 Scenario Lab** in the sidebar to simulate before/after scenarios.")
+        st.info("Switch to **Scenario Lab** in the sidebar to simulate before/after scenarios.")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE 2: SCENARIO LAB
 # ═══════════════════════════════════════════════════════════════════════════════
-elif selected_page == "🧪 Scenario Lab":
+elif selected_page == "Scenario Lab":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">🧪 SCENARIO LAB // INTERVENTION ENGINE</h1>
+                    <h1 class="command-title">SCENARIO LAB // INTERVENTION ENGINE</h1>
                     <p class="command-subtitle">SIMULATE CANDIDATE TRANSPORTATION SCENARIOS & EVALUATE DECISION VERDICTS</p>
                 </div>
                 <div>
@@ -351,32 +356,49 @@ elif selected_page == "🧪 Scenario Lab":
         unsafe_allow_html=True,
     )
 
-    # Scenario Selection Box
-    s_col1, s_col2, s_col3 = st.columns([2, 1, 1])
-    with s_col1:
-        preset = st.selectbox(
-            "Select Candidate Intervention",
-            [
-                "Close Silk Board Junction (Node 0)",
-                "Add HSR-Haralur Bypass Road (Node 10 → 11)",
-                "VIP Convoy Diversion (Node 0 & Node 1 Closed)",
-                "Custom Node Closure",
-            ],
-            index=0,
-        )
+    # Scenario selection form: nothing is simulated until "Run Scenario" is pressed
+    node_choices = {int(r["node_id"]): str(r["name"]) for _, r in net.nodes.iterrows()}
+    PRESETS = [
+        "Close Silk Board Junction (Node 48)",
+        "Add HSR-Haralur Bypass Road (Node 10 → 11)",
+        "VIP Convoy Diversion (Node 48 & Node 52 Closed)",
+        "Custom Node Closure",
+    ]
+    with st.form("scenario_form"):
+        s_col1, s_col2, s_col3 = st.columns([2, 1, 1])
+        with s_col1:
+            preset_in = st.selectbox("Select Candidate Intervention", PRESETS, index=0)
+            custom_in = st.selectbox(
+                "Junction to close (used only for Custom Node Closure)",
+                options=list(node_choices.keys()),
+                format_func=lambda n: f"#{n} - {node_choices[n]}",
+            )
+        with s_col2:
+            cost_in = st.slider("Capital Cost Index", 0.0, 1.0, 0.15, step=0.05)
+        with s_col3:
+            feas_in = st.slider("Feasibility Score", 0.5, 1.0, 0.95, step=0.05)
+        run_clicked = st.form_submit_button("Run Scenario", type="primary", use_container_width=True)
 
-    with s_col2:
-        cost_idx = st.slider("Capital Cost Index", 0.0, 1.0, 0.15 if "Close" in preset else 0.40, step=0.05)
-    with s_col3:
-        feas_idx = st.slider("Feasibility Score", 0.5, 1.0, 0.95, step=0.05)
+    if run_clicked:
+        st.session_state["scen_params"] = {
+            "preset": preset_in, "custom_node": custom_in, "cost": cost_in, "feas": feas_in,
+        }
+    _p = st.session_state.get("scen_params")
+    if _p is None:
+        st.info("Choose an intervention above, then press **Run Scenario** to simulate it and see the verdict.")
+        st.stop()
 
-    # Build Scenario NetworkBundle non-destructively
+    preset = _p["preset"]
+    cost_idx = _p["cost"]
+    feas_idx = _p["feas"]
+    st.caption(f"Showing results for: **{preset}** (cost index {cost_idx:.2f}, feasibility {feas_idx:.2f}). Change the inputs and press Run Scenario to update.")
+
     scenario_name = preset
-    scenario_key = preset.replace(" ", "_").replace("(", "").replace(")", "").replace("→", "to")
+    scenario_key = preset.replace(" ", "_").replace("(", "").replace(")", "").replace("→", "to").replace("&", "and")
 
-    if preset == "Close Silk Board Junction (Node 0)":
-        scen_net = net.close_node(0)
-    elif preset == "Add HSR-Haralur Bypass Road (Node 10 → 11)":
+    if preset.startswith("Close Silk Board"):
+        scen_net = net.close_node(PRESET_A)
+    elif preset.startswith("Add HSR-Haralur"):
         scen_net = net.add_edge(
             10, 11,
             edge_id=9000, length_m=1200.0, lanes=2,
@@ -386,13 +408,11 @@ elif selected_page == "🧪 Scenario Lab":
             is_bridge=False, is_flyover=False, has_signal_at_v=False,
             name="HSR-Haralur Bypass",
         )
-    elif preset == "VIP Convoy Diversion (Node 0 & Node 1 Closed)":
-        scen_net = net.close_node(0).close_node(1)
-    elif preset == "Custom Node Closure":
-        nodes_df = net.nodes
-        choices = {int(r["node_id"]): r["name"] for _, r in nodes_df.iterrows()}
-        selected_node = st.selectbox("Select Junction Node to Close", options=list(choices.keys()), format_func=lambda n: f"#{n} - {choices[n]}")
-        scenario_name = f"Close Junction {choices[selected_node]}"
+    elif preset.startswith("VIP Convoy"):
+        scen_net = net.close_node(PRESET_A).close_node(PRESET_B)
+    else:
+        selected_node = _p["custom_node"]
+        scenario_name = f"Close Junction {node_choices[selected_node]}"
         scenario_key = f"custom_close_{selected_node}"
         scen_net = net.close_node(selected_node)
 
@@ -449,7 +469,7 @@ elif selected_page == "🧪 Scenario Lab":
         weights=weights,
     )
     st.download_button(
-        label="📄 Download Planner Decision Brief (PDF)",
+        label="Download Planner Decision Brief (PDF)",
         data=pdf_bytes,
         file_name=f"UrbanFlow_Decision_Brief_{scenario_key}_{time_slot}.pdf",
         mime="application/pdf",
@@ -463,7 +483,7 @@ elif selected_page == "🧪 Scenario Lab":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">📉 MCDA Score Contribution Waterfall</div>
+                <div class="panel-title">MCDA Score Contribution Waterfall</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -475,16 +495,16 @@ elif selected_page == "🧪 Scenario Lab":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">🗺️ Spatial Simulation & Impact Analysis</div>
+                <div class="panel-title">Spatial Simulation & Impact Analysis</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
         tab_map, tab_delta, tab_flow = st.tabs([
-            "🔄 Before vs After Maps",
-            "⚡ Change (Delta) Map",
-            "🌊 Vehicle Flow & Heatmap",
+            "Before vs After Maps",
+            "Change (Delta) Map",
+            "Vehicle Flow & Heatmap",
         ])
 
         with tab_map:
@@ -512,13 +532,13 @@ elif selected_page == "🧪 Scenario Lab":
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLACEHOLDERS FOR REMAINING STAGE B PAGES
 # ═══════════════════════════════════════════════════════════════════════════════
-elif selected_page == "⚖️ Compare & Recommend":
+elif selected_page == "Compare & Recommend":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">⚖️ COMPARE & RECOMMEND // DECISION MATRIX</h1>
+                    <h1 class="command-title">COMPARE & RECOMMEND // DECISION MATRIX</h1>
                     <p class="command-subtitle">SIDE-BY-SIDE MULTI-SCENARIO BENCHMARKING & "AI SUGGESTS" TOP-3 INTERVENTIONS</p>
                 </div>
                 <div>
@@ -530,11 +550,11 @@ elif selected_page == "⚖️ Compare & Recommend":
         unsafe_allow_html=True,
     )
 
-    tab_compare, tab_ai = st.tabs(["📊 Multi-Scenario Comparison Matrix", "🤖 AI Suggests (TOPSIS Ranked)"])
+    tab_compare, tab_ai = st.tabs(["Multi-Scenario Comparison Matrix", "AI Suggests (TOPSIS Ranked)"])
 
     scen_candidates = [
         {"name": "Baseline (Current State)", "net": net, "cost": 0.0, "feas": 1.0},
-        {"name": "Close Silk Board Junction", "net": net.close_node(0), "cost": 0.1, "feas": 0.95},
+        {"name": "Close Silk Board Junction", "net": net.close_node(PRESET_A), "cost": 0.1, "feas": 0.95},
         {
             "name": "Add HSR-Haralur Bypass",
             "net": net.add_edge(
@@ -548,14 +568,14 @@ elif selected_page == "⚖️ Compare & Recommend":
             ),
             "cost": 0.35, "feas": 0.90,
         },
-        {"name": "VIP Convoy Diversion", "net": net.close_node(0).close_node(1), "cost": 0.15, "feas": 0.85},
+        {"name": "VIP Convoy Diversion", "net": net.close_node(PRESET_A).close_node(1), "cost": 0.15, "feas": 0.85},
     ]
 
     with tab_compare:
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">📋 Multi-Criteria Performance Matrix</div>
+                <div class="panel-title">Multi-Criteria Performance Matrix</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -624,7 +644,7 @@ elif selected_page == "⚖️ Compare & Recommend":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">🤖 AI Suggests — Autonomous Intervention Optimization</div>
+                <div class="panel-title">AI Suggests — Autonomous Intervention Optimization</div>
                 <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
                     Stage A TOPSIS algorithm evaluates all library candidates across speed, congestion, transit delay, emissions, and cost trade-offs.
                 </p>
@@ -647,13 +667,13 @@ elif selected_page == "⚖️ Compare & Recommend":
         for rank, s in enumerate(top3, 1):
             st.markdown(build_ai_suggest_card_html(rank, s), unsafe_allow_html=True)
 
-elif selected_page == "💡 AI Insights":
+elif selected_page == "AI Insights":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">💡 AI INSIGHTS // EXPLANATORY & PREDICTIVE INTELLIGENCE</h1>
+                    <h1 class="command-title">AI INSIGHTS // EXPLANATORY & PREDICTIVE INTELLIGENCE</h1>
                     <p class="command-subtitle">TRANSPARENT MCDA EXPLANATIONS, ML CONGESTION FORECASTS & SIMULATION ANOMALY MONITOR</p>
                 </div>
                 <div>
@@ -666,16 +686,16 @@ elif selected_page == "💡 AI Insights":
     )
 
     ai_tab1, ai_tab2, ai_tab3 = st.tabs([
-        "🗣️ Decision Explanations",
-        "📈 ML Congestion Predictor",
-        "🛡️ Anomaly Detection Monitor",
+        "Decision Explanations",
+        "ML Congestion Predictor",
+        "Anomaly Detection Monitor",
     ])
 
     with ai_tab1:
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">🧠 Deterministic Decision Explainability</div>
+                <div class="panel-title">Deterministic Decision Explainability</div>
                 <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
                     UrbanFlow uses deterministic rule templates driven strictly by normalized mathematical deltas (no stochastic hallucinations or ungrounded generative numbers).
                 </p>
@@ -687,15 +707,15 @@ elif selected_page == "💡 AI Insights":
         sample_scen_choice = st.selectbox(
             "Select Scenario to Inspect Explanation",
             [
-                "Close Silk Board Junction (Node 0)",
+                "Close Silk Board Junction (Node 48)",
                 "Add HSR-Haralur Bypass (Node 10 → 11)",
-                "VIP Convoy Diversion (Node 0 & Node 1 Closed)",
+                "VIP Convoy Diversion (Node 48 & Node 52 Closed)",
             ],
             index=0,
         )
 
-        if sample_scen_choice == "Close Silk Board Junction (Node 0)":
-            test_net = net.close_node(0)
+        if sample_scen_choice == "Close Silk Board Junction (Node 48)":
+            test_net = net.close_node(PRESET_A)
             cost = 0.1
             feas = 0.95
         elif sample_scen_choice == "Add HSR-Haralur Bypass (Node 10 → 11)":
@@ -703,7 +723,7 @@ elif selected_page == "💡 AI Insights":
             cost = 0.35
             feas = 0.90
         else:
-            test_net = net.close_node(0).close_node(1)
+            test_net = net.close_node(PRESET_A).close_node(1)
             cost = 0.15
             feas = 0.85
 
@@ -740,7 +760,7 @@ elif selected_page == "💡 AI Insights":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">📈 Machine Learning Trend Forecast (Ridge Regression)</div>
+                <div class="panel-title">Machine Learning Trend Forecast (Ridge Regression)</div>
                 <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
                     Predicts time-of-day congestion ratios across road classes based on calibrated corridor observations.
                 </p>
@@ -774,7 +794,7 @@ elif selected_page == "💡 AI Insights":
         st.markdown(
             """
             <div class="panel-card">
-                <div class="panel-title">🛡️ Simulation Stability & Anomaly Monitor (Isolation Forest)</div>
+                <div class="panel-title">Simulation Stability & Anomaly Monitor (Isolation Forest)</div>
                 <p style="color:#94A3B8; font-size:0.85rem; margin-top:-6px;">
                     Flags statistically divergent simulation runs that deviate severely from expected corridor network equilibrium.
                 </p>
@@ -788,7 +808,7 @@ elif selected_page == "💡 AI Insights":
             ensemble = []
             for s in ["morning_peak", "evening_peak", "midday", "night_offpeak"]:
                 ensemble.append(sim.simulate(net.graph, s, "Base"))
-                ensemble.append(sim.simulate(net.close_node(0).graph, s, "Close 0"))
+                ensemble.append(sim.simulate(net.close_node(PRESET_A).graph, s, "Close preset node"))
             det = AnomalyDetector()
             det.fit(ensemble)
             return det
@@ -820,13 +840,13 @@ elif selected_page == "💡 AI Insights":
                 unsafe_allow_html=True,
             )
 
-elif selected_page == "🚌 Transit & Metro":
+elif selected_page == "Transit & Metro":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">🚌 TRANSIT & METRO // BMTC + NAMMA METRO</h1>
+                    <h1 class="command-title">TRANSIT & METRO // BMTC + NAMMA METRO</h1>
                     <p class="command-subtitle">BUS ROUTE RUNNING TIME, SCENARIO-INDUCED BUS DELAY & METRO INTERCHANGE ACCESS</p>
                 </div>
                 <div>
@@ -843,8 +863,8 @@ elif selected_page == "🚌 Transit & Metro":
     else:
         transit_presets = {
             "Baseline (no intervention)": lambda: net,
-            "Close Silk Board Junction (Node 0)": lambda: net.close_node(0),
-            "VIP Convoy Diversion (Node 0 & Node 1 Closed)": lambda: net.close_node(0).close_node(1),
+            "Close Silk Board Junction (Node 48)": lambda: net.close_node(PRESET_A),
+            "VIP Convoy Diversion (Node 48 & Node 52 Closed)": lambda: net.close_node(PRESET_A).close_node(1),
         }
         t_choice = st.selectbox("Scenario to evaluate for bus impact", list(transit_presets.keys()), index=1)
         t_net = transit_presets[t_choice]()
@@ -875,13 +895,13 @@ elif selected_page == "🚌 Transit & Metro":
 
         tm_col1, tm_col2 = st.columns([1.6, 1.4])
         with tm_col1:
-            st.markdown('<div class="panel-card"><div class="panel-title">🗺️ Bus Routes & Metro Stations</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="panel-card"><div class="panel-title">Bus Routes & Metro Stations</div></div>', unsafe_allow_html=True)
             st.plotly_chart(
                 build_transit_map(net, scen_routes, inter_df, scenario_graph=None if t_net is net else t_net.graph),
                 use_container_width=True,
             )
         with tm_col2:
-            st.markdown('<div class="panel-card"><div class="panel-title">⏱️ Running Time Impact</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="panel-card"><div class="panel-title">⏱Running Time Impact</div></div>', unsafe_allow_html=True)
             st.plotly_chart(build_route_delay_chart(route_cmp), use_container_width=True)
             if not route_cmp.empty:
                 st.dataframe(
@@ -909,13 +929,13 @@ elif selected_page == "🚌 Transit & Metro":
             st.dataframe(inter_df.drop(columns=["lat", "lon"]), use_container_width=True, hide_index=True)
             st.caption("Metro headways and ridership are not part of the processed dataset and are therefore not shown.")
 
-elif selected_page == "🛡️ Validation Harness":
+elif selected_page == "Validation Harness":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">🛡️ VALIDATION HARNESS // MODEL CALIBRATION & INTEGRITY</h1>
+                    <h1 class="command-title">VALIDATION HARNESS // MODEL CALIBRATION & INTEGRITY</h1>
                     <p class="command-subtitle">BPR CONGESTION ERROR METRICS, CORRIDOR HOLD-OUT VALIDATION & GRAPH INTEGRITY TESTS</p>
                 </div>
                 <div>
@@ -939,7 +959,7 @@ elif selected_page == "🛡️ Validation Harness":
     val_report = run_validation(net, sims_by_slot, cfg, root=ROOT)
 
     for note in val_report.notes:
-        st.info(f"ℹ️ {note}")
+        st.info(f"ℹ{note}")
 
     # Top KPI Metrics
     vk1, vk2, vk3, vk4 = st.columns(4)
@@ -960,13 +980,13 @@ elif selected_page == "🛡️ Validation Harness":
     )
 
     val_tab1, val_tab2, val_tab3 = st.tabs([
-        "📊 Edge Speed Agreement",
-        "🛣️ Corridor Hold-Out Validation",
-        "🔍 Bundle Integrity Suite",
+        "Edge Speed Agreement",
+        "Corridor Hold-Out Validation",
+        "Bundle Integrity Suite",
     ])
 
     with val_tab1:
-        st.markdown('<div class="panel-card"><div class="panel-title">📈 Observed vs Simulated Edge Speed Parity</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">Observed vs Simulated Edge Speed Parity</div></div>', unsafe_allow_html=True)
         vcol1, vcol2 = st.columns([1.6, 1.4])
         with vcol1:
             fig_scat = build_validation_scatter(
@@ -986,7 +1006,7 @@ elif selected_page == "🛡️ Validation Harness":
             st.dataframe(val_report.edge_by_class, use_container_width=True, hide_index=True)
 
     with val_tab2:
-        st.markdown('<div class="panel-card"><div class="panel-title">🛣️ 70/30 Hold-Out Corridor Calibration Split</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">70/30 Hold-Out Corridor Calibration Split</div></div>', unsafe_allow_html=True)
         if val_report.corridor_df.empty:
             st.warning("No manual field observations loaded yet. Hold-out calibration tests will activate in Stage C.")
         else:
@@ -1002,18 +1022,18 @@ elif selected_page == "🛡️ Validation Harness":
             st.dataframe(val_report.corridor_df, use_container_width=True, hide_index=True)
 
     with val_tab3:
-        st.markdown('<div class="panel-card"><div class="panel-title">🔍 Automated Network & Bundle Integrity Tests</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">Automated Network & Bundle Integrity Tests</div></div>', unsafe_allow_html=True)
         df_int = pd.DataFrame(val_report.integrity)
-        df_int["Status"] = df_int["passed"].apply(lambda p: "✅ PASS" if p else "❌ FAIL")
+        df_int["Status"] = df_int["passed"].apply(lambda p: "PASS" if p else "FAIL")
         st.dataframe(df_int[["Status", "check", "detail"]], use_container_width=True, hide_index=True)
 
-elif selected_page == "🗄️ Pipeline & Data":
+elif selected_page == "Pipeline & Data":
     st.markdown(
         f"""
         <div class="command-header">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h1 class="command-title">🗄️ PIPELINE & DATA // PROVENANCE & SCHEMA INSPECTOR</h1>
+                    <h1 class="command-title">PIPELINE & DATA // PROVENANCE & SCHEMA INSPECTOR</h1>
                     <p class="command-subtitle">RAW VS PROCESSED DATASETS, METADATA SPECIFICATIONS & DATA DICTIONARY REFERENCE</p>
                 </div>
                 <div>
@@ -1026,14 +1046,14 @@ elif selected_page == "🗄️ Pipeline & Data":
     )
 
     p_tab1, p_tab2, p_tab3, p_tab4 = st.tabs([
-        "📂 Dataset Inspector",
-        "📋 Metadata & Provenance",
-        "📖 Data Dictionary",
-        "⚙️ Active Configuration",
+        "Dataset Inspector",
+        "Metadata & Provenance",
+        "Data Dictionary",
+        "Active Configuration",
     ])
 
     with p_tab1:
-        st.markdown('<div class="panel-card"><div class="panel-title">📂 Processed Data Table Browser</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">Processed Data Table Browser</div></div>', unsafe_allow_html=True)
         available_tables = {
             "Edges (Road Segments)": net.edges,
             "Nodes (Junctions)": net.nodes,
@@ -1064,7 +1084,7 @@ elif selected_page == "🗄️ Pipeline & Data":
             st.dataframe(disp_df, use_container_width=True)
 
     with p_tab2:
-        st.markdown('<div class="panel-card"><div class="panel-title">📋 Dataset Metadata & Provenance</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">Dataset Metadata & Provenance</div></div>', unsafe_allow_html=True)
         pm1, pm2 = st.columns(2)
         with pm1:
             st.markdown("**Build Metadata (`metadata.json`)**")
@@ -1080,7 +1100,7 @@ elif selected_page == "🗄️ Pipeline & Data":
                 st.info("PROVENANCE.md not found.")
 
     with p_tab3:
-        st.markdown('<div class="panel-card"><div class="panel-title">📖 Schema Data Dictionary (`docs/DATA_DICTIONARY.md`)</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">Schema Data Dictionary (`docs/DATA_DICTIONARY.md`)</div></div>', unsafe_allow_html=True)
         dict_file = ROOT / "docs" / "DATA_DICTIONARY.md"
         if dict_file.exists():
             st.markdown(dict_file.read_text(encoding="utf-8"))
@@ -1088,5 +1108,5 @@ elif selected_page == "🗄️ Pipeline & Data":
             st.info("DATA_DICTIONARY.md not found.")
 
     with p_tab4:
-        st.markdown('<div class="panel-card"><div class="panel-title">⚙️ Active Configuration (`config/config.yaml`)</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-card"><div class="panel-title">Active Configuration (`config/config.yaml`)</div></div>', unsafe_allow_html=True)
         st.json(cfg)
