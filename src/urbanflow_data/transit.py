@@ -1,4 +1,4 @@
-﻿"""
+"""
 transit.py - Phase 3
 Snap bus routes and metro stations onto the road graph.
 Falls back to OSM public transport relations if GTFS is unavailable.
@@ -143,7 +143,7 @@ def _load_osm_transit(G, north, south, east, west, snap_dist):
     logger.info("Fetching OSM bus route relations via Overpass...")
     try:
         gdf = ox.features_from_bbox(
-            bbox=(north, south, east, west),
+            bbox=(west, south, east, north),
             tags={"route": "bus"}
         )
         if gdf.empty:
@@ -178,7 +178,7 @@ def _get_metro_stations(north, south, east, west):
     logger.info("Fetching Namma Metro stations...")
     try:
         gdf = ox.features_from_bbox(
-            bbox=(north, south, east, west),
+            bbox=(west, south, east, north),
             tags={"railway": "station"}
         )
         if gdf.empty:

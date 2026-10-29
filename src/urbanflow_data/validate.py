@@ -94,6 +94,23 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> bool:
     else:
         results.append(("BPR params file exists", False, "bpr_params.json missing"))
 
+    # ── 8b. Bus route edge paths are contiguous ───────────────────────────────
+    bre_path = processed_dir / "bus_route_edges.parquet"
+    if bre_path.exists() and edges_df is not None and not edges_df.empty:
+        bre = pd.read_parquet(bre_path)
+        if not bre.empty:
+            uv_map = edges_df.set_index(edges_df["edge_id"].astype(int))[["u", "v"]].astype(int)
+            broken_routes = []
+            for rid, grp in bre.sort_values("seq").groupby("route_id"):
+                eids = [int(e) for e in grp["edge_id"] if int(e) in uv_map.index]
+                for e1, e2 in zip(eids[:-1], eids[1:]):
+                    if int(uv_map.loc[e1, "v"]) != int(uv_map.loc[e2, "u"]):
+                        broken_routes.append(str(rid))
+                        break
+            results.append(("Every bus route edge path is connected on graph",
+                            len(broken_routes) == 0,
+                            f"{len(broken_routes)} broken" if broken_routes else "all connected"))
+
     # ── 9. metadata.json exists ───────────────────────────────────────────────
     meta_path = processed_dir / "metadata.json"
     results.append(("metadata.json exists", meta_path.exists(), ""))

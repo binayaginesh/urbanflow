@@ -1,4 +1,4 @@
-﻿"""
+"""
 osm_download.py – Phase 1 Step 1
 Download the OSM drive graph and extra features for the study area.
 
@@ -42,7 +42,7 @@ def run(cfg: dict[str, Any], root: Path = Path("."), *, small: bool = False) -> 
 
     logger.info("Downloading OSM drive graph: N=%.4f S=%.4f E=%.4f W=%.4f", north, south, east, west)
     G_raw = ox.graph_from_bbox(
-        bbox=(north, south, east, west),
+        bbox=(west, south, east, north),
         network_type=cfg["osm"]["network_type"],
         simplify=False,
         retain_all=cfg["osm"].get("retain_all", False),
@@ -72,7 +72,7 @@ def run(cfg: dict[str, Any], root: Path = Path("."), *, small: bool = False) -> 
         for label, tags in tags_map.items():
             try:
                 gdf = ox.features_from_bbox(
-                    bbox=(north, south, east, west), tags=tags
+                    bbox=(west, south, east, north), tags=tags
                 )
                 if not gdf.empty:
                     gdfs[label] = gdf

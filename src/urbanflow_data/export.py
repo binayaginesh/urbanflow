@@ -1,4 +1,4 @@
-﻿"""
+"""
 export.py - Phase 5a
 Export the final processed bundle to data/processed/.
 """
@@ -37,9 +37,54 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> None:
     edges_gdf = edges_gdf.reset_index()
     nodes_gdf = nodes_gdf.reset_index()
 
-    # Ensure edge_id column exists
+    # Ensure node_id, x, y, name, is_signalised exist on nodes_gdf
+    if "node_id" not in nodes_gdf.columns and "osmid" in nodes_gdf.columns:
+        nodes_gdf["node_id"] = nodes_gdf["osmid"].astype(int)
+    else:
+        nodes_gdf["node_id"] = pd.to_numeric(nodes_gdf["node_id"], errors="coerce").fillna(0).astype(int)
+    nodes_gdf["x"] = pd.to_numeric(nodes_gdf["x"], errors="coerce")
+    nodes_gdf["y"] = pd.to_numeric(nodes_gdf["y"], errors="coerce")
+    if "name" not in nodes_gdf.columns:
+        nodes_gdf["name"] = nodes_gdf["node_id"].apply(lambda nid: f"Junction {nid}")
+    else:
+        nodes_gdf["name"] = nodes_gdf["name"].fillna("").astype(str)
+        empty_mask = nodes_gdf["name"].isin(["", "nan", "None"])
+        nodes_gdf.loc[empty_mask, "name"] = nodes_gdf.loc[empty_mask, "node_id"].apply(lambda nid: f"Junction {nid}")
+    if "is_signalised" in nodes_gdf.columns:
+        nodes_gdf["is_signalised"] = nodes_gdf["is_signalised"].astype(str).str.lower().isin(["true", "1", "yes"])
+    else:
+        nodes_gdf["is_signalised"] = False
+
+    # Ensure edge_id and numeric attributes exist on edges_gdf
     if "edge_id" not in edges_gdf.columns:
         edges_gdf["edge_id"] = range(len(edges_gdf))
+    else:
+        edges_gdf["edge_id"] = pd.to_numeric(edges_gdf["edge_id"], errors="coerce").fillna(0).astype(int)
+    edges_gdf["u"] = pd.to_numeric(edges_gdf["u"], errors="coerce").fillna(0).astype(int)
+    edges_gdf["v"] = pd.to_numeric(edges_gdf["v"], errors="coerce").fillna(0).astype(int)
+    for num_col, default_val in [
+        ("lanes", 1),
+        ("length_m", 100.0),
+        ("free_flow_speed_kmh", 30.0),
+        ("free_flow_time_s", 12.0),
+        ("capacity_pcu_per_hr", 1000.0),
+    ]:
+        if num_col in edges_gdf.columns:
+            edges_gdf[num_col] = pd.to_numeric(edges_gdf[num_col], errors="coerce").fillna(default_val)
+        else:
+            edges_gdf[num_col] = default_val
+    edges_gdf["lanes"] = edges_gdf["lanes"].astype(int)
+    if "is_bridge" in edges_gdf.columns:
+        edges_gdf["is_bridge"] = edges_gdf["is_bridge"].astype(str).str.lower().isin(["true", "1", "yes"])
+    else:
+        edges_gdf["is_bridge"] = False
+
+    # Populate lat_u, lon_u, lat_v, lon_v from node coordinates for dashboard maps
+    node_xy = nodes_gdf.set_index("node_id")[["x", "y"]]
+    edges_gdf["lon_u"] = edges_gdf["u"].map(node_xy["x"])
+    edges_gdf["lat_u"] = edges_gdf["u"].map(node_xy["y"])
+    edges_gdf["lon_v"] = edges_gdf["v"].map(node_xy["x"])
+    edges_gdf["lat_v"] = edges_gdf["v"].map(node_xy["y"])
 
     # Coerce geometry-incompatible types for parquet
     for col in edges_gdf.columns:
