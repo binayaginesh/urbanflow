@@ -19,6 +19,16 @@ def run(cfg: dict[str, Any], root: Path = Path("."), *, small: bool = False) -> 
     import osmnx as ox
     from .config import get_bbox, get_small_bbox
 
+    # Avoid hanging on Overpass rate-limit pauses and use fast mirror fallback
+    ox.settings.overpass_rate_limit = False
+    ox.settings.requests_timeout = 90
+    ox.settings.use_cache = True
+    overpass_endpoints = [
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+    ]
+
     raw_dir = root / cfg["paths"]["raw_dir"]
     raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -41,55 +51,57 @@ def run(cfg: dict[str, Any], root: Path = Path("."), *, small: bool = False) -> 
         north, south, east, west = get_bbox(cfg)
 
     logger.info("Downloading OSM drive graph: N=%.4f S=%.4f E=%.4f W=%.4f", north, south, east, west)
-    G_raw = ox.graph_from_bbox(
-        bbox=(west, south, east, north),
-        network_type=cfg["osm"]["network_type"],
-        simplify=False,
-        retain_all=cfg["osm"].get("retain_all", False),
-    )
+    G_raw = None
+    last_err = None
+    for ep in overpass_endpoints:
+        try:
+            ox.settings.overpass_url = ep
+            G_raw = ox.graph_from_bbox(
+                bbox=(west, south, east, north),
+                network_type=cfg["osm"]["network_type"],
+                simplify=False,
+                retain_all=cfg["osm"].get("retain_all", False),
+            )
+            break
+        except Exception as e:
+            logger.warning("Overpass endpoint %s failed (%s), trying next...", ep, e)
+            last_err = e
+    if G_raw is None:
+        raw_existing = raw_dir / "osm_drive_raw.graphml"
+        if raw_existing.exists():
+            logger.warning("All Overpass mirrors timed out; using cached raw graph at %s", raw_existing)
+            _update_provenance(root, cfg)
+            return
+        raise RuntimeError(f"All Overpass endpoints failed: {last_err}")
     _save_and_log(G_raw, raw_dir, cfg, root)
 
-    # ── Download extra OSM features ─────────────────────────────────────────
+    # ── Download extra OSM features (single combined Overpass query) ────────
     logger.info("Downloading extra OSM features (signals, bus stops, metro, POIs)...")
-    tags_map = {
-        "traffic_signals": {"highway": "traffic_signals"},
-        "bus_stops":        {"highway": "bus_stop"},
-        "transit_platform": {"public_transport": "platform"},
-        "metro_stations":   {"railway": "station", "station": "subway"},
-        "bridges":          {"bridge": True},
-        "stadiums":         {"leisure": "stadium"},
-        "malls":            {"shop": "mall"},
-        "hospitals":        {"amenity": "hospital"},
-        "tech_parks":       {"landuse": "commercial"},
+    combined_tags = {
+        "highway": ["traffic_signals", "bus_stop"],
+        "public_transport": ["platform"],
+        "railway": ["station"],
+        "leisure": ["stadium"],
+        "shop": ["mall"],
+        "amenity": ["hospital"],
     }
 
     try:
         import geopandas as gpd
-        from shapely.geometry import box as shapely_box
-        study_polygon = shapely_box(west, south, east, north)
-
-        gdfs = {}
-        for label, tags in tags_map.items():
-            try:
-                gdf = ox.features_from_bbox(
-                    bbox=(west, south, east, north), tags=tags
-                )
-                if not gdf.empty:
-                    gdfs[label] = gdf
-                    logger.info("  %-20s: %d features", label, len(gdf))
-            except Exception as e:
-                logger.warning("  %-20s: skipped (%s)", label, e)
-
-        if gdfs:
-            import fiona
+        gdf_all = ox.features_from_bbox(
+            bbox=(west, south, east, north), tags=combined_tags
+        )
+        if not gdf_all.empty:
             gpkg_path = raw_dir / "osm_features.gpkg"
-            for layer, gdf in gdfs.items():
-                # Keep only geometry + key string columns
-                keep_cols = [c for c in gdf.columns if gdf[c].dtype == object or c == "geometry"]
-                gdf[keep_cols].to_file(str(gpkg_path), layer=layer, driver="GPKG")
-            logger.info("Saved extra features to %s", gpkg_path)
+            keep_cols = [c for c in gdf_all.columns if gdf_all[c].dtype == object or c == "geometry"]
+            gdf_clean = gdf_all[keep_cols].reset_index(drop=True)
+            for col in gdf_clean.columns:
+                if col != "geometry":
+                    gdf_clean[col] = gdf_clean[col].astype(str)
+            gdf_clean.to_file(str(gpkg_path), layer="pois", driver="GPKG")
+            logger.info("Saved %d extra features to %s", len(gdf_clean), gpkg_path)
     except Exception as e:
-        logger.warning("Extra features download failed: %s", e)
+        logger.warning("Extra features download skipped (%s)", e)
 
     _update_provenance(root, cfg)
 

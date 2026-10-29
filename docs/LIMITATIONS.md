@@ -14,3 +14,5 @@ Honest list of known data gaps and modelling assumptions.
 | 8 | Model covers road network only; pedestrian/cycling modes excluded | Does not capture mode-shift effects | Scope limitation accepted |
 
 *This file is updated as new limitations are discovered during the pipeline.*
+
+> **Auto-flagged:** Lane imputation is 92.4% (>60%). Capacity estimates for many edges rely entirely on config defaults.

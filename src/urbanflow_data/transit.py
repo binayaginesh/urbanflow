@@ -16,6 +16,11 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> None:
     import geopandas as gpd
     from shapely.geometry import Point
 
+    ox.settings.overpass_rate_limit = False
+    ox.settings.requests_timeout = 30
+    ox.settings.use_cache = True
+    ox.settings.overpass_url = "https://overpass.kumi.systems/api/interpreter"
+
     interim_dir = root / cfg["paths"]["interim_dir"]
     sim_path    = interim_dir / "network_sim.graphml"
     if not sim_path.exists():
