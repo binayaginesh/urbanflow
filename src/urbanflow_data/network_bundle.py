@@ -181,9 +181,36 @@ def load_network(processed_dir: str | Path | None = None) -> NetworkBundle:
     p = get_data_dir(processed_dir)
 
     graph = nx.read_graphml(p / "network.graphml")
-    # Restore integer node ids
+    # Restore integer node ids and numeric edge attributes (GraphML stores custom attrs as str)
     mapping = {n: int(n) for n in graph.nodes() if str(n).isdigit()}
     graph = nx.relabel_nodes(graph, mapping)
+    for nid, nd in graph.nodes(data=True):
+        if "node_id" in nd and str(nd["node_id"]).isdigit():
+            nd["node_id"] = int(nd["node_id"])
+        for coord_k in ("x", "y"):
+            if coord_k in nd:
+                try:
+                    nd[coord_k] = float(nd[coord_k])
+                except (ValueError, TypeError):
+                    pass
+        if "is_signalised" in nd:
+            nd["is_signalised"] = str(nd["is_signalised"]).lower() in ("true", "1", "yes")
+    for _, _, _, ed in graph.edges(data=True, keys=True):
+        for int_k in ("edge_id", "lanes"):
+            if int_k in ed:
+                try:
+                    ed[int_k] = int(float(ed[int_k]))
+                except (ValueError, TypeError):
+                    pass
+        for flt_k in ("length_m", "length", "maxspeed_kmh", "free_flow_speed_kmh", "free_flow_time_s", "capacity_pcu_per_hr"):
+            if flt_k in ed:
+                try:
+                    ed[flt_k] = float(ed[flt_k])
+                except (ValueError, TypeError):
+                    pass
+        for bool_k in ("is_bridge", "is_flyover", "has_signal_at_v"):
+            if bool_k in ed:
+                ed[bool_k] = str(ed[bool_k]).lower() in ("true", "1", "yes")
 
     try:
         edges = gpd.read_parquet(p / "edges.parquet")
