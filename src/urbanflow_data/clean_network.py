@@ -1,4 +1,4 @@
-﻿"""
+"""
 clean_network.py - Phase 1 Step 2
 Clean and simplify the raw OSM drive graph.
 """
@@ -131,7 +131,35 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> None:
         data["oneway"]  = bool(data.get("oneway", False))
         data["bridge"]  = data.get("bridge", "no") not in (None, "no", False, "")
         data["tunnel"]  = data.get("tunnel", "no") not in (None, "no", False, "")
-        data["name"]    = str(data.get("name", "")) if data.get("name") else ""
+        raw_name = data.get("name", "")
+        if isinstance(raw_name, list):
+            raw_name = raw_name[0] if raw_name else ""
+        data["name"]    = str(raw_name) if raw_name else ""
+
+    # ── 4b. Apply manual road corridor overrides from config (Stage C3) ──────
+    corridor_overrides = cfg.get("road_overrides", {}).get("corridors", []) or []
+    override_count = 0
+    if corridor_overrides:
+        for u, v, k, data in G.edges(data=True, keys=True):
+            ename = str(data.get("name", "")).lower()
+            if not ename:
+                continue
+            for ov in corridor_overrides:
+                match_sub = str(ov.get("match_name", "")).lower()
+                if match_sub and match_sub in ename:
+                    if "highway" in ov:
+                        data["highway"] = str(ov["highway"])
+                    if "lanes" in ov:
+                        data["lanes"] = int(ov["lanes"])
+                        data["lanes_imputed"] = False
+                        data["manual_override"] = True
+                    if "maxspeed_kmh" in ov:
+                        data["maxspeed_kmh"] = float(ov["maxspeed_kmh"])
+                        data["speed_imputed"] = False
+                        data["manual_override"] = True
+                    override_count += 1
+                    break
+        logger.info("Applied manual road overrides to %d edges", override_count)
 
     pct_lanes = 100 * lanes_imputed_count / total_edges if total_edges else 0
     pct_speed = 100 * speed_imputed_count / total_edges if total_edges else 0

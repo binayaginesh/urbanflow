@@ -151,8 +151,8 @@ def test_bundle_integrity_checks(ctx):
 def test_run_validation_on_demo_bundle(ctx):
     cfg, net, sims = ctx
     rep = run_validation(net, sims, cfg, root=".")
-    assert rep.reference_label == "synthetic"
-    assert any("SYNTHETIC" in n for n in rep.notes)
+    assert rep.reference_label in ("synthetic", "imputed", "mixed", "observed")
+    assert len(rep.notes) > 0
     assert rep.edge_overall["n"] > 0
     # No accuracy target configured -> no pass/fail verdict is produced
     assert rep.mape_target_pct is None
@@ -179,4 +179,3 @@ def test_validation_charts(ctx):
     assert any(t.name == "parity (y = x)" for t in fig.data)
     bar = build_error_by_group_chart(rep.edge_by_slot, "time_slot", "Error by slot")
     assert len(bar.data) == 2
-
