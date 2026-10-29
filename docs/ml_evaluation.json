@@ -1,0 +1,40 @@
+{
+  "n_train_rows": 1884,
+  "n_test_rows": 808,
+  "n_train_edges": 471,
+  "n_test_edges": 202,
+  "predictor_available": true,
+  "ml_ridge_metrics": {
+    "n": 808,
+    "rmse": 0.10754388071186172,
+    "mae": 0.06842622026728076,
+    "mape_pct": 4.6926608541066654,
+    "bias": 0.011682863861288766,
+    "pearson_r": 0.9460160239959784
+  },
+  "baseline_global_mean_metrics": {
+    "n": 808,
+    "rmse": 0.31843800521718135,
+    "mae": 0.23316384982447289,
+    "mape_pct": 16.855693179845893,
+    "bias": -0.019835351369531923,
+    "pearson_r": -2.282716949603263e-16
+  },
+  "baseline_class_mean_metrics": {
+    "n": 808,
+    "rmse": 0.2603013771202394,
+    "mae": 0.2065594059405941,
+    "mape_pct": 15.63416762349312,
+    "bias": 1.1541922533231825e-17,
+    "pearson_r": 0.573761656159951
+  },
+  "beats_global_baseline": true,
+  "beats_class_baseline": true,
+  "keep_congestion_trend_predictor": true,
+  "anomaly_detector_available": true,
+  "anomaly_detector_n_samples": 12,
+  "anomaly_flagged_scenarios": [
+    "Baseline_midday",
+    "Baseline_evening_peak"
+  ]
+}
