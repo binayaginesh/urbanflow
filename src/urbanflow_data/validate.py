@@ -138,7 +138,7 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> bool:
 
     # ── Print report ──────────────────────────────────────────────────────────
     all_passed = True
-    logger.info("─── Validation Report ───")
+    logger.info("--- Validation Report ---")
     for name, passed, detail in results:
         mark = PASS if passed else FAIL
         msg  = f"{mark}  {name}"
@@ -150,7 +150,7 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> bool:
             logger.error(msg)
             all_passed = False
 
-    logger.info("─── %s (%d/%d checks passed) ───",
+    logger.info("--- %s (%d/%d checks passed) ---",
                 "ALL PASSED" if all_passed else "FAILURES FOUND",
                 sum(1 for _, p, _ in results if p), len(results))
     return all_passed

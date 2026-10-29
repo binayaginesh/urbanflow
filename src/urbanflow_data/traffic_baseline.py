@@ -1,4 +1,4 @@
-﻿"""
+"""
 traffic_baseline.py - Phase 4a
 Collect observed travel times along key corridors.
 Falls back to manual CSV if no API key configured.
@@ -178,20 +178,26 @@ def _fetch_tomtom(routes_df, api_key: str, cache_dir: Path):
 
 def _load_manual_fallback(routes_df, cache_dir: Path, interim_dir: Path):
     """
-    Look for manually collected traffic CSV in cache_dir.
-    Expected columns: route_id, time_slot, datetime, free_flow_time_s, observed_time_s, source
+    Look for manually collected traffic CSVs in cache_dir:
+      - manual_observations_<name>.csv (team plan schema)
+      - manual_traffic.csv (pipeline schema)
     """
     import pandas as pd
+    from .config import get_config
+    from .validation_harness import load_manual_observations
+
+    cfg = get_config()
+    obs_df = load_manual_observations(cache_dir, cfg.get("time_slots", []))
+    if not obs_df.empty:
+        obs_df["observed_time_s"] = obs_df["travel_time_s"]
+        logger.info("Loaded manual traffic data: %d valid records from %s", len(obs_df), cache_dir)
+        return obs_df
+
     manual_file = cache_dir / "manual_traffic.csv"
-    if manual_file.exists():
-        df = pd.read_csv(manual_file)
-        df["congestion_ratio"] = df["observed_time_s"] / df["free_flow_time_s"].clip(lower=1)
-        logger.info("Loaded manual traffic data: %d records from %s", len(df), manual_file)
-        return df
-    else:
+    if not manual_file.exists():
         logger.warning("No manual traffic CSV found at %s. Creating template.", manual_file)
-        template = pd.DataFrame(columns=["route_id","time_slot","datetime",
-                                          "free_flow_time_s","observed_time_s","source"])
+        template = pd.DataFrame(columns=["route_id", "time_slot", "datetime",
+                                          "free_flow_time_s", "observed_time_s", "source"])
         template.to_csv(manual_file, index=False)
         logger.info("Created empty template: %s -- fill this in and re-run.", manual_file)
-        return None
+    return None

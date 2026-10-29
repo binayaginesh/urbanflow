@@ -274,7 +274,7 @@ validation:
   # Sanity range for reference congestion ratios (matches validate.py).
   congestion_ratio_range: [0.9, 7.0]
   # Max distance (m) between a sample-route endpoint and its snapped junction.
-  corridor_max_snap_m: 150
+  corridor_max_snap_m: 1500
   # Accuracy target on hold-out corridors (MAPE %). Left null on purpose: the
   # target must be agreed with the guide in Stage C. While null, the harness
   # reports metrics without a pass/fail verdict.

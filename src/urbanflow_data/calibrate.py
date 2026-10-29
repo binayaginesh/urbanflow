@@ -1,4 +1,4 @@
-﻿"""
+"""
 calibrate.py - Phase 4b
 Fit BPR parameters and distribute observed speeds to edges.
 """
@@ -65,17 +65,34 @@ def run(cfg: dict[str, Any], root: Path = Path("."), **kwargs) -> None:
         "service":     {"morning_peak":1.2, "evening_peak":1.3, "midday":1.1, "night_offpeak":1.0},
     }
 
-    # ── Fit BPR per road class using observed data if available ───────────────
+    # ── Fit BPR per road class using 70% calibration split if available ─────
     bpr_params: dict[str, Any] = {}
     road_classes = list(cfg["default_lanes"].keys())
+    cal_corridors: list[str] = []
+    holdout_corridors: list[str] = []
 
     if not traffic_df.empty and "congestion_ratio" in traffic_df.columns:
-        logger.info("Fitting BPR parameters from observed data...")
-        bpr_params = _fit_bpr(traffic_df, road_classes, alpha_default, beta_default)
+        from .validation_harness import holdout_split
+        vcfg = cfg.get("validation", {}) or {}
+        holdout_frac = float(vcfg.get("holdout_fraction", 0.30))
+        holdout_seed = int(vcfg.get("holdout_seed", 42))
+        if "route_id" in traffic_df.columns:
+            cal_corridors, holdout_corridors = holdout_split(
+                traffic_df["route_id"].unique().tolist(), holdout_frac, holdout_seed
+            )
+            cal_df = traffic_df[traffic_df["route_id"].astype(str).isin(cal_corridors)]
+        else:
+            cal_df = traffic_df
+        logger.info(
+            "Fitting BPR parameters on 70%% calibration split (%d calibration corridors, %d hold-out corridors)...",
+            len(cal_corridors), len(holdout_corridors),
+        )
+        bpr_params = _fit_bpr(cal_df if not cal_df.empty else traffic_df, road_classes, alpha_default, beta_default)
     else:
         for rc in road_classes:
             bpr_params[rc] = {"alpha": alpha_default, "beta": beta_default}
         logger.info("Using default BPR parameters (no observed data).")
+    bpr_params["busway"] = bpr_params.get("primary", {"alpha": alpha_default, "beta": beta_default})
 
     # ── Distribute speeds to every edge per time slot ─────────────────────────
     logger.info("Computing per-edge per-slot speeds...")

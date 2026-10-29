@@ -134,13 +134,17 @@ class DemandMatrix:
 
         util = self.SYSTEM_UTIL.get(self.slot, 0.30)
 
-        # Total system capacity at this slot
+        # Total system capacity at this slot.
+        # In larger graphs (n > 16), each O-D trip traverses ~O(n^0.75) edges along
+        # shortest paths, so normalize trip generation by path-hop scaling to keep
+        # average link v/c ratios invariant to graph subdivision density.
         slot_factor = SLOT_VOLUME_FACTOR.get(self.slot, 0.5)
         total_cap = sum(
             float(d.get("capacity_pcu_per_hr", 1000)) * slot_factor
             for _, _, d in G.edges(data=True)
         )
-        total_demand = total_cap * util  # PCU/hr system-wide
+        hop_scale = max(1.0, (n / 16.0) ** 0.75)
+        total_demand = (total_cap * util) / hop_scale  # PCU/hr system-wide
 
         # Build impedance matrix (use free_flow_time shortest path as proxy for distance)
         # Use node positions for Euclidean fallback when no path exists.
@@ -149,20 +153,24 @@ class DemandMatrix:
             for nid in nodes
         }
 
-        # Compute pairwise gravity weights
+        # Compute pairwise gravity weights using single-source Dijkstra per origin
         weights: dict[tuple, float] = {}
         node_idx = {nid: i for i, nid in enumerate(nodes)}
 
         for i, o in enumerate(nodes):
+            try:
+                dist_from_o = nx.single_source_dijkstra_path_length(
+                    G, o, weight="free_flow_time_s"
+                )
+            except nx.NodeNotFound:
+                dist_from_o = {}
             for j, d_node in enumerate(nodes):
                 if i == j:
                     continue
                 # Try graph shortest path time; fall back to Euclidean degree-distance
-                try:
-                    dist = nx.shortest_path_length(
-                        G, source=o, target=d_node, weight="free_flow_time_s"
-                    )
-                except (nx.NetworkXNoPath, nx.NodeNotFound):
+                if d_node in dist_from_o:
+                    dist = dist_from_o[d_node]
+                else:
                     ox, oy = node_pos[o]
                     dx, dy = node_pos[d_node]
                     dist = math.sqrt((ox - dx) ** 2 + (oy - dy) ** 2) * 111_000 + 1e-3
@@ -210,15 +218,20 @@ class FlowAssigner:
         }
 
         nodes_in_graph = set(G.nodes())
+        paths_cache: dict[Any, dict[Any, list]] = {}
 
         for (o, d_node), demand_pcu in demand.pairs():
             if demand_pcu <= 0:
                 continue
             if o not in nodes_in_graph or d_node not in nodes_in_graph:
                 continue
-            try:
-                path = nx.shortest_path(G, source=o, target=d_node, weight=weight)
-            except (nx.NetworkXNoPath, nx.NodeNotFound):
+            if o not in paths_cache:
+                try:
+                    paths_cache[o] = nx.single_source_dijkstra_path(G, o, weight=weight)
+                except nx.NodeNotFound:
+                    paths_cache[o] = {}
+            path = paths_cache[o].get(d_node)
+            if not path:
                 continue
             # Accumulate demand on each edge along the path
             for a, b in zip(path[:-1], path[1:]):
